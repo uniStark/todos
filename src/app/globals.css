@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #000000;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom styles for minimalist look */
+.todo-input {
+  @apply bg-transparent border-b border-gray-300 focus:border-black outline-none py-2 transition-colors;
+}
+
+.dark .todo-input {
+  @apply border-gray-700 focus:border-white;
+}
+
+.btn-primary {
+  @apply px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors disabled:bg-gray-400;
+}
+
+.dark .btn-primary {
+  @apply bg-white text-black hover:bg-gray-200;
+}
+

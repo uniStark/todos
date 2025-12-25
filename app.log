@@ -1,0 +1,85 @@
+
+> todolist@0.1.0 dev /Users/beamstark/code/nextjs/todolist
+> next dev
+
+   ▲ Next.js 15.1.2
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.203:3000
+
+ ✓ Starting...
+ ✓ Ready in 2.9s
+ ○ Compiling / ...
+(node:23986) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ Compiled / in 1854ms (603 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET / 200 in 2128ms
+ ✓ Compiled in 334ms (589 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /_next/static/webpack/87cc87bfd501525b.webpack.hot-update.json 404 in 2244ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 144ms
+ GET / 200 in 16ms
+ ✓ Compiled /api/todos in 202ms (609 modules)
+ GET /api/todos 200 in 111ms
+ GET /api/todos 200 in 284ms
+ DELETE /api/todos?id=c5819631-896f-442d-b2be-763003970e37 200 in 6ms
+ ✓ Compiled in 168ms (319 modules)
+ GET / 200 in 52ms
+ GET / 200 in 54ms
+ ✓ Compiled in 370ms (623 modules)
+ GET / 200 in 66ms
+ GET / 200 in 69ms
+ ✓ Compiled in 425ms (600 modules)
+ GET / 200 in 77ms
+ GET / 200 in 80ms
+ ✓ Compiled in 224ms (600 modules)
+ GET / 200 in 70ms
+ GET / 200 in 75ms
+ ✓ Compiled in 131ms (600 modules)
+ GET / 200 in 34ms
+ GET / 200 in 7ms
+ ✓ Compiled /api/todos in 123ms (318 modules)
+ PUT /api/todos 200 in 193ms
+ POST /api/todos 200 in 14ms
+ ✓ Compiled in 230ms (619 modules)
+ GET / 200 in 52ms
+ GET / 200 in 19ms
+ ✓ Compiled in 335ms (619 modules)
+ GET / 200 in 58ms
+ GET / 200 in 58ms
+ PUT /api/todos 200 in 14ms
+ PUT /api/todos 200 in 6ms
+ PUT /api/todos 200 in 4ms
+ PUT /api/todos 200 in 4ms
+ POST /api/todos 200 in 7ms
+ PUT /api/todos 200 in 5ms
+ PUT /api/todos 200 in 4ms
+ PUT /api/todos 200 in 6ms
+ PUT /api/todos 200 in 4ms
+ DELETE /api/todos?id=57ee8d13-5712-4b24-9e08-c1a1169e9a12 200 in 5ms
+ ✓ Compiled in 142ms (318 modules)
+ GET / 200 in 50ms
+ GET / 200 in 50ms
+ ✓ Compiled in 168ms (619 modules)
+ GET / 200 in 42ms
+ GET / 200 in 43ms
+ ✓ Compiled in 239ms (619 modules)
+ GET / 200 in 36ms
+ GET / 200 in 14ms
+ ✓ Compiled in 174ms (619 modules)
+ GET / 200 in 39ms
+ GET / 200 in 49ms
+ DELETE /api/todos?id=df365005-db20-4899-8c2c-100f49756380 200 in 16ms
+ POST /api/todos 200 in 16ms
+ ✓ Compiled in 346ms (619 modules)
+ GET / 200 in 40ms
+ GET / 200 in 42ms
+ ✓ Compiled in 1352ms (1401 modules)
+ GET / 200 in 73ms
+ GET / 200 in 76ms
+ ✓ Compiled in 310ms (1401 modules)
+ GET / 200 in 38ms
+ GET / 200 in 38ms
+ POST /api/todos 200 in 28ms
+ PUT /api/todos 200 in 3ms
+ DELETE /api/todos?id=cab62749-3ef0-434b-abce-5c4bf7824147 200 in 7ms

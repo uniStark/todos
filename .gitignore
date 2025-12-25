@@ -31,3 +31,7 @@ next-env.d.ts
 # data
 todos.json
 
+# logs
+app.log
+app.pid
+

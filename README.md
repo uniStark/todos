@@ -43,7 +43,13 @@
 
 如果您更倾向于容器化部署：
 
+**首次启动或启动前请确保 `todos.json` 文件存在**：
 ```bash
+# 方法一：使用提供的启动脚本（推荐）
+./docker-start.sh
+
+# 方法二：手动创建文件后启动
+echo "[]" > todos.json
 docker compose up -d
 ```
 

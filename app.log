@@ -83,3 +83,6 @@
  POST /api/todos 200 in 28ms
  PUT /api/todos 200 in 3ms
  DELETE /api/todos?id=cab62749-3ef0-434b-abce-5c4bf7824147 200 in 7ms
+ PUT /api/todos 200 in 71ms
+ PUT /api/todos 200 in 4ms
+[?25h

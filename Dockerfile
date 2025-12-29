@@ -2,8 +2,16 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
+
+# 配置 npm 镜像源（解决网络超时问题）
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm config set network-timeout 600000
+
 RUN if [ -f pnpm-lock.yaml ]; then \
-      corepack enable && pnpm i --frozen-lockfile; \
+      corepack enable && \
+      pnpm config set registry https://registry.npmmirror.com && \
+      pnpm config set network-timeout 600000 && \
+      pnpm i --frozen-lockfile; \
     else \
       npm i; \
     fi

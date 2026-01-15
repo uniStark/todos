@@ -1,143 +1,107 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
+import { motion } from 'framer-motion';
+import { CheckSquare, Zap } from 'lucide-react';
 
 const StarkLogo: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const letterVariants = {
+    hidden: { opacity: 0, y: 50 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: i * 0.1,
+        duration: 0.8,
+        type: 'spring',
+        stiffness: 100,
+      },
+    }),
+  };
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
-
-    let animationFrameId: number;
-    let particles: Particle[] = [];
-    const mouse = { x: 0, y: 0, radius: 120 };
-
-    // 获取当前是否为深色模式
-    const getIsDark = () => {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches || 
-             document.documentElement.classList.contains('dark');
-    };
-
-    class Particle {
-      x: number;
-      y: number;
-      baseX: number;
-      baseY: number;
-      size: number;
-      density: number;
-
-      constructor(x: number, y: number) {
-        this.x = Math.random() * 800; // 从随机位置出现
-        this.y = Math.random() * 300;
-        this.baseX = x;
-        this.baseY = y;
-        this.size = Math.random() * 1.5 + 1;
-        this.density = Math.random() * 30 + 10;
-      }
-
-      draw() {
-        if (!ctx) return;
-        const isDark = getIsDark();
-        ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)';
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.fill();
-      }
-
-      update() {
-        const dx = mouse.x - this.x;
-        const dy = mouse.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance < mouse.radius) {
-          const forceDirectionX = dx / distance;
-          const forceDirectionY = dy / distance;
-          const force = (mouse.radius - distance) / mouse.radius;
-          const directionX = forceDirectionX * force * this.density;
-          const directionY = forceDirectionY * force * this.density;
-          this.x -= directionX;
-          this.y -= directionY;
-        } else {
-          // 缓慢回到原位
-          if (this.x !== this.baseX) {
-            this.x -= (this.x - this.baseX) / 10;
-          }
-          if (this.y !== this.baseY) {
-            this.y -= (this.y - this.baseY) / 10;
-          }
-        }
-      }
-    }
-
-    const init = () => {
-      const isDark = getIsDark();
-      canvas.width = 800;
-      canvas.height = 250;
-      
-      // 先画出文字用来采样
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'white'; // 采样用的临时颜色
-      ctx.font = 'bold 120px Inter, system-ui, Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('STARK', canvas.width / 2, canvas.height / 2);
-
-      const textCoordinates = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      particles = [];
-
-      // 采样步长调小一点（2或3），让文字更细腻
-      for (let y = 0; y < textCoordinates.height; y += 3) {
-        for (let x = 0; x < textCoordinates.width; x += 3) {
-          // 如果透明度大于128，就在该点创建粒子
-          if (textCoordinates.data[y * 4 * textCoordinates.width + x * 4 + 3] > 128) {
-            particles.push(new Particle(x, y));
-          }
-        }
-      }
-    };
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let i = 0; i < particles.length; i++) {
-        particles[i].draw();
-        particles[i].update();
-      }
-      animationFrameId = requestAnimationFrame(animate);
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = event.clientX - rect.left;
-      mouse.y = event.clientY - rect.top;
-    };
-
-    // 稍微延迟初始化，确保布局和字体加载
-    const timer = setTimeout(() => {
-      init();
-      animate();
-    }, 100);
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('resize', init);
-
-    return () => {
-      clearTimeout(timer);
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', init);
-    };
-  }, []);
+  const iconVariants = {
+    hidden: { scale: 0, rotate: -180 },
+    visible: {
+      scale: 1,
+      rotate: 0,
+      transition: {
+        delay: 0.6,
+        duration: 0.6,
+        type: 'spring',
+        stiffness: 200,
+      },
+    },
+  };
 
   return (
-    <div className="flex justify-center items-center w-full min-h-[250px] overflow-hidden">
-      <canvas
-        ref={canvasRef}
-        className="max-w-full h-auto cursor-crosshair"
+    <div className="flex flex-col items-center justify-center py-8 sm:py-12">
+      {/* Icon + Text Logo */}
+      <div className="flex items-center gap-3 sm:gap-4 mb-3">
+        <motion.div
+          variants={iconVariants}
+          initial="hidden"
+          animate="visible"
+          className="relative"
+        >
+          {/* Animated background glow */}
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.5, 0.8, 0.5],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+            className="absolute inset-0 bg-blue-500/20 dark:bg-blue-400/20 rounded-xl blur-xl"
+          />
+          
+          {/* Icon */}
+          <div className="relative bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 p-3 rounded-xl shadow-lg">
+            <CheckSquare className="text-white" size={32} strokeWidth={2.5} />
+          </div>
+        </motion.div>
+
+        {/* Text Logo with modern font */}
+        <div className="flex items-center">
+          {['S', 'T', 'A', 'R', 'K'].map((letter, i) => (
+            <motion.span
+              key={i}
+              custom={i}
+              variants={letterVariants}
+              initial="hidden"
+              animate="visible"
+              className="text-5xl sm:text-6xl md:text-7xl font-black tracking-tighter bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-white dark:via-slate-100 dark:to-white bg-clip-text text-transparent"
+              style={{
+                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+                fontWeight: 900,
+              }}
+            >
+              {letter}
+            </motion.span>
+          ))}
+        </div>
+      </div>
+
+      {/* Subtitle with elegant animation */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8, duration: 0.6 }}
+        className="flex items-center gap-2 text-sm sm:text-base text-slate-600 dark:text-slate-400 font-medium"
+      >
+        <span>极简任务管理</span>
+        <Zap size={16} className="text-blue-600 dark:text-blue-400" />
+        <span>高效生活方式</span>
+      </motion.div>
+
+      {/* Decorative underline */}
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: '100%' }}
+        transition={{ delay: 1, duration: 0.8, ease: 'easeOut' }}
+        className="h-0.5 bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent mt-4 max-w-md"
       />
     </div>
   );

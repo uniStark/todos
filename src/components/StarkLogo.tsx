@@ -23,7 +23,7 @@ const StarkLogo: React.FC<StarkLogoProps> = ({ logoText: customLogoText }) => {
       transition: {
         delay: i * 0.1,
         duration: 0.8,
-        type: 'spring',
+        type: 'spring' as const,
         stiffness: 100,
       },
     }),
@@ -37,7 +37,7 @@ const StarkLogo: React.FC<StarkLogoProps> = ({ logoText: customLogoText }) => {
       transition: {
         delay: 0.6,
         duration: 0.6,
-        type: 'spring',
+        type: 'spring' as const,
         stiffness: 200,
       },
     },

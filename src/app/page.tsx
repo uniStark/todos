@@ -1,13 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import StarkLogo from '@/components/StarkLogo';
+import dynamic from 'next/dynamic';
 import { Todo } from '@/lib/storage';
 import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { translations } from '@/lib/translations';
+
+// 动态导入 Logo 组件（非关键路径）
+const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
+  loading: () => <div className="h-32 flex items-center justify-center" />,
+  ssr: true,
+});
 
 export default function Home() {
   const router = useRouter();
@@ -33,7 +39,7 @@ export default function Home() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const fetchTodos = async () => {
+  const fetchTodos = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/todos');
@@ -44,9 +50,9 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const addTodo = async (e: React.FormEvent) => {
+  const addTodo = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
@@ -62,9 +68,9 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to add todo:', error);
     }
-  };
+  }, [inputValue, todos]);
 
-  const toggleTodo = async (id: string, completed: boolean) => {
+  const toggleTodo = useCallback(async (id: string, completed: boolean) => {
     try {
       const response = await fetch('/api/todos', {
         method: 'PUT',
@@ -76,16 +82,16 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to toggle todo:', error);
     }
-  };
+  }, [todos]);
 
-  const deleteTodo = async (id: string) => {
+  const deleteTodo = useCallback(async (id: string) => {
     try {
       await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
       setTodos(todos.filter((t) => t.id !== id));
     } catch (error) {
       console.error('Failed to delete todo:', error);
     }
-  };
+  }, [todos]);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -107,17 +113,20 @@ export default function Home() {
     }
   };
 
-  const filteredTodos = todos.filter((todo) => {
-    if (filter === 'active') return !todo.completed;
-    if (filter === 'completed') return todo.completed;
-    return true;
-  });
+  // 使用 useMemo 优化计算
+  const filteredTodos = useMemo(() => {
+    return todos.filter((todo) => {
+      if (filter === 'active') return !todo.completed;
+      if (filter === 'completed') return todo.completed;
+      return true;
+    });
+  }, [todos, filter]);
 
-  const stats = {
+  const stats = useMemo(() => ({
     total: todos.length,
     active: todos.filter((t) => !t.completed).length,
     completed: todos.filter((t) => t.completed).length,
-  };
+  }), [todos]);
 
   return (
     <main className="min-h-screen bg-light-primary transition-colors duration-500">

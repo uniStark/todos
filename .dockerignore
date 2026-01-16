@@ -1,17 +1,59 @@
+# 依赖
 node_modules
-.next
-out
-build
-.git
-.gitignore
-docker-compose.yml
-Dockerfile
-README.md
-.env*.local
-pnpm-debug.log*
 npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.DS_Store
-*.pem
 
+# Next.js
+.next
+out
+dist
+build
+
+# 测试
+coverage
+.nyc_output
+
+# 环境变量
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# 文档
+README.md
+README.zh-CN.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+
+# 日志和临时文件
+*.log
+app.log
+app.pid
+*.pid
+
+# 脚本（不需要在镜像中）
+run.sh
+docker-start.sh
+
+# TypeScript
+*.tsbuildinfo

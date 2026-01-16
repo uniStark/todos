@@ -15,6 +15,10 @@ const config: Config = {
     },
   },
   plugins: [],
+  // 生产模式优化
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
 };
 export default config;
 

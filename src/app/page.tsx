@@ -147,28 +147,28 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-white dark:bg-slate-800/50 backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm hover:shadow-md transition-shadow duration-200"
+            className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-slate-800/50 dark:to-slate-800/50 backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-6 border border-blue-200 dark:border-slate-700/50 shadow-sm hover:shadow-md transition-all duration-200"
           >
-            <div className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">{t.all}</div>
-            <div className="text-xl sm:text-3xl font-bold text-slate-900 dark:text-white">{stats.total}</div>
+            <div className="text-xs sm:text-sm font-medium text-blue-700 dark:text-slate-400 mb-1">{t.all}</div>
+            <div className="text-xl sm:text-3xl font-bold text-blue-900 dark:text-white">{stats.total}</div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white dark:bg-slate-800/50 backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm hover:shadow-md transition-shadow duration-200"
+            className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-slate-800/50 dark:to-slate-800/50 backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-6 border border-orange-200 dark:border-slate-700/50 shadow-sm hover:shadow-md transition-all duration-200"
           >
-            <div className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">{t.active}</div>
-            <div className="text-xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.active}</div>
+            <div className="text-xs sm:text-sm font-medium text-orange-700 dark:text-slate-400 mb-1">{t.active}</div>
+            <div className="text-xl sm:text-3xl font-bold text-orange-900 dark:text-blue-400">{stats.active}</div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-white dark:bg-slate-800/50 backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm hover:shadow-md transition-shadow duration-200"
+            className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-slate-800/50 dark:to-slate-800/50 backdrop-blur-xl rounded-xl sm:rounded-2xl p-3 sm:p-6 border border-emerald-200 dark:border-slate-700/50 shadow-sm hover:shadow-md transition-all duration-200"
           >
-            <div className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">{t.completed}</div>
-            <div className="text-xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.completed}</div>
+            <div className="text-xs sm:text-sm font-medium text-emerald-700 dark:text-slate-400 mb-1">{t.completed}</div>
+            <div className="text-xl sm:text-3xl font-bold text-emerald-900 dark:text-emerald-400">{stats.completed}</div>
           </motion.div>
         </div>
 

@@ -8,7 +8,7 @@
 <img src="https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind CSS">
 <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
 
-**基于 Next.js 构建的极简、现代、精致的待办事项应用**
+**基于 Next.js 构建的极简、现代、高度精致的待办事项应用**
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -198,7 +198,7 @@ stark-todo-list/
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 打开一个 Pull Request
 
-更多详情，请查看 [CONTRIBUTING.md](CONTRIBUTING.md)。
+更多详情请查看 [贡献指南](CONTRIBUTING.md)。
 
 ## 📄 许可证
 
@@ -208,7 +208,7 @@ stark-todo-list/
 
 - 基于 [Next.js](https://nextjs.org/) 构建
 - UI 设计灵感来自现代极简主义
-- 由 STARK 团队用 ❤️ 打造
+- 由 STARK 用 ❤️ 打造
 
 ---
 
@@ -216,6 +216,6 @@ stark-todo-list/
 
 **[⬆ 返回顶部](#-stark-todo-list)**
 
-Made with ❤️ by STARK Team | Powered by Next.js & Gemini 3 Flash
+由 STARK 用 ❤️ 制作 | 基于 Next.js
 
 </div>

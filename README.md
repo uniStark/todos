@@ -208,7 +208,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Powered by [Next.js](https://nextjs.org/)
 - UI Design inspired by modern minimalism
-- Built with ❤️ by the STARK team
+- Built with ❤️ by the STARK
 
 ---
 
@@ -216,6 +216,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **[⬆ Back to Top](#-stark-todo-list)**
 
-Made with ❤️ by STARK Team | Powered by Next.js & Gemini 3 Flash
+Made with ❤️ by STARK | Powered by Next.js
 
 </div>

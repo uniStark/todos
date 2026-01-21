@@ -121,7 +121,18 @@ A convenient shell script is provided for easy management:
    - Automatically display backend logs
    - Use Docker volume for data persistence
 
-2. **Or manually with Docker Compose**
+2. **Quick update (rebuild and restart)**
+   ```bash
+   ./docker-update.sh
+   ```
+   This script will:
+   - Stop the current container
+   - Pull latest code (if Git repository)
+   - Rebuild the Docker image (no cache)
+   - Start the new container
+   - Display logs automatically
+
+3. **Or manually with Docker Compose**
    ```bash
    # Start with Docker Compose
    docker compose up -d --build
@@ -135,7 +146,22 @@ A convenient shell script is provided for easy management:
    http://localhost:4000
    ```
 
-4. **Data Persistence**
+4. **Management commands**
+   ```bash
+   # Stop containers
+   docker compose down
+   
+   # Restart containers
+   docker compose restart
+   
+   # View logs
+   docker compose logs -f
+   
+   # Quick update (rebuild everything)
+   ./docker-update.sh
+   ```
+
+5. **Data Persistence**
    - Data is stored in a Docker volume named `todos-data`
    - To backup data:
      ```bash
@@ -146,7 +172,7 @@ A convenient shell script is provided for easy management:
      docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar xzf /backup/todos-backup.tar.gz -C /data
      ```
 
-5. **Clean up (removes data)**
+6. **Clean up (removes data)**
    ```bash
    docker compose down -v
    ```

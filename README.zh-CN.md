@@ -121,7 +121,18 @@
    - 自动显示后端日志
    - 使用 Docker 卷进行数据持久化
 
-2. **或手动使用 Docker Compose**
+2. **快速更新（重新构建并重启）**
+   ```bash
+   ./docker-update.sh
+   ```
+   此脚本会：
+   - 停止当前容器
+   - 拉取最新代码（如果是 Git 仓库）
+   - 重新构建 Docker 镜像（无缓存）
+   - 启动新容器
+   - 自动显示日志
+
+3. **或手动使用 Docker Compose**
    ```bash
    # 使用 Docker Compose 启动
    docker compose up -d --build
@@ -135,7 +146,22 @@
    http://localhost:4000
    ```
 
-4. **数据持久化**
+4. **管理命令**
+   ```bash
+   # 停止容器
+   docker compose down
+   
+   # 重启容器
+   docker compose restart
+   
+   # 查看日志
+   docker compose logs -f
+   
+   # 快速更新（重新构建所有内容）
+   ./docker-update.sh
+   ```
+
+5. **数据持久化**
    - 数据存储在名为 `todos-data` 的 Docker 卷中
    - 备份数据：
      ```bash
@@ -146,7 +172,7 @@
      docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar xzf /backup/todos-backup.tar.gz -C /data
      ```
 
-5. **清理（会删除数据）**
+6. **清理（会删除数据）**
    ```bash
    docker compose down -v
    ```

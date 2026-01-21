@@ -57,8 +57,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# 创建数据文件
-RUN touch todos.json && chown nextjs:nodejs todos.json
+# 创建数据目录并设置权限
+RUN mkdir -p /app/data && \
+    touch /app/data/todos.json && \
+    echo "[]" > /app/data/todos.json && \
+    chown -R nextjs:nodejs /app/data && \
+    chmod -R 755 /app/data
 
 USER nextjs
 

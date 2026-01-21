@@ -116,19 +116,39 @@ A convenient shell script is provided for easy management:
    ```bash
    ./docker-start.sh
    ```
+   The script will:
+   - Build and start the Docker container
+   - Automatically display backend logs
+   - Use Docker volume for data persistence
 
 2. **Or manually with Docker Compose**
    ```bash
-   # Ensure todos.json exists
-   echo "[]" > todos.json
-   
    # Start with Docker Compose
-   docker compose up -d
+   docker compose up -d --build
+   
+   # View logs
+   docker compose logs -f
    ```
 
 3. **Access the application**
    ```
    http://localhost:4000
+   ```
+
+4. **Data Persistence**
+   - Data is stored in a Docker volume named `todos-data`
+   - To backup data:
+     ```bash
+     docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar czf /backup/todos-backup.tar.gz -C /data .
+     ```
+   - To restore data:
+     ```bash
+     docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar xzf /backup/todos-backup.tar.gz -C /data
+     ```
+
+5. **Clean up (removes data)**
+   ```bash
+   docker compose down -v
    ```
 
 ## 📂 Project Structure

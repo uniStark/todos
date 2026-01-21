@@ -17,9 +17,9 @@ echo ""
 echo "✅ 应用已启动成功！"
 echo "📍 访问地址: http://localhost:4000"
 echo ""
-echo "💡 使用提示:"
-echo "   - 停止应用: docker compose down"
-echo "   - 查看日志: docker compose logs -f"
-echo "   - 重启应用: docker compose restart"
+echo "📋 正在显示后端日志 (Ctrl+C 退出日志查看)..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# 自动显示日志
+docker compose logs -f

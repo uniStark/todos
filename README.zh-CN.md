@@ -116,19 +116,39 @@
    ```bash
    ./docker-start.sh
    ```
+   脚本会自动：
+   - 构建并启动 Docker 容器
+   - 自动显示后端日志
+   - 使用 Docker 卷进行数据持久化
 
 2. **或手动使用 Docker Compose**
    ```bash
-   # 确保 todos.json 存在
-   echo "[]" > todos.json
-   
    # 使用 Docker Compose 启动
-   docker compose up -d
+   docker compose up -d --build
+   
+   # 查看日志
+   docker compose logs -f
    ```
 
 3. **访问应用**
    ```
    http://localhost:4000
+   ```
+
+4. **数据持久化**
+   - 数据存储在名为 `todos-data` 的 Docker 卷中
+   - 备份数据：
+     ```bash
+     docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar czf /backup/todos-backup.tar.gz -C /data .
+     ```
+   - 恢复数据：
+     ```bash
+     docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar xzf /backup/todos-backup.tar.gz -C /data
+     ```
+
+5. **清理（会删除数据）**
+   ```bash
+   docker compose down -v
    ```
 
 ## 📂 项目结构

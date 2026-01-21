@@ -81,6 +81,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     
     const root = document.documentElement;
     
+    // 强制移除过渡效果，确保立即切换
+    root.style.setProperty('transition', 'none');
+    
     if (theme === 'system') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (prefersDark) {
@@ -93,10 +96,31 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     } else {
       root.classList.remove('dark');
     }
+    
+    // 强制重绘，确保立即生效
+    void root.offsetHeight;
+    
+    // 恢复过渡效果
+    requestAnimationFrame(() => {
+      root.style.removeProperty('transition');
+    });
+    
+    console.log(`[Theme] Applied theme: ${theme}, dark class: ${root.classList.contains('dark')}`);
   };
 
   const updateSettings = (newSettings: Partial<Settings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      
+      // 如果更新了主题，立即应用
+      if (newSettings.theme !== undefined) {
+        requestAnimationFrame(() => {
+          applyTheme(newSettings.theme!);
+        });
+      }
+      
+      return updated;
+    });
   };
 
   return (

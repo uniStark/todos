@@ -6,9 +6,10 @@ services:
     ports:
       - "4000:3000"
     volumes:
-      - ./todos.json:/app/todos.json
+      - todos-data:/app/data
     environment:
       - NODE_ENV=production
+      - DATA_DIR=/app/data
     restart: always
 
 volumes:

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import StatsTracker from "@/components/StatsTracker";
 
 export const metadata: Metadata = {
   title: "STARK Todo - 极简任务管理",
@@ -47,10 +48,10 @@ export default function RootLayout({
       </head>
       <body className="antialiased" suppressHydrationWarning>
         <SettingsProvider>
+          <StatsTracker />
           {children}
         </SettingsProvider>
       </body>
     </html>
   );
 }
-

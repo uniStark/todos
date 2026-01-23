@@ -28,6 +28,9 @@ export default function Home() {
   useEffect(() => {
     fetchTodos();
     
+    // Record PV/UV
+    fetch('/api/stats', { method: 'POST' }).catch(err => console.error('Failed to record stats:', err));
+    
     // Detect mobile device
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768); // md breakpoint

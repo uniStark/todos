@@ -11,15 +11,16 @@ import { enUS, zhCN } from 'date-fns/locale';
 import { Todo } from '@/lib/storage';
 import { useSettings } from '@/contexts/SettingsContext';
 import { translations } from '@/lib/translations';
-import { Calendar, TrendingUp, CheckCircle2, Clock, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, TrendingUp, CheckCircle2, Clock, Filter, ChevronLeft, ChevronRight, Eye, Users } from 'lucide-react';
 
 interface AnalyticsDashboardProps {
   todos: Todo[];
+  siteStats: { pv: number; uv: number };
 }
 
 type Range = '7d' | '30d' | 'all';
 
-export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
+export default function AnalyticsDashboard({ todos, siteStats }: AnalyticsDashboardProps) {
   const { settings } = useSettings();
   const t = translations[settings.language];
   const [range, setRange] = useState<Range>('7d');
@@ -113,8 +114,10 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
       </div>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         {[
+          { label: t.pv, value: siteStats.pv, icon: Eye, color: 'indigo' },
+          { label: t.uv, value: siteStats.uv, icon: Users, color: 'purple' },
           { label: t.totalCreated, value: stats.total, icon: Calendar, color: 'blue' },
           { label: t.completed, value: stats.completed, icon: CheckCircle2, color: 'emerald' },
           { label: t.successRate, value: `${stats.rate}%`, icon: TrendingUp, color: 'orange' },

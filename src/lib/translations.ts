@@ -59,6 +59,8 @@ export const translations = {
     syncingTasks: '正在同步任务...',
     noActiveTasks: '暂无进行中的任务',
     noCompletedTasks: '暂无已完成的任务',
+    pv: '访问量 (PV)',
+    uv: '访客数 (UV)',
   },
   en: {
     // Common
@@ -120,6 +122,8 @@ export const translations = {
     syncingTasks: 'Syncing tasks...',
     noActiveTasks: 'No active tasks',
     noCompletedTasks: 'No completed tasks',
+    pv: 'Page Views (PV)',
+    uv: 'Unique Visitors (UV)',
   },
 };
 

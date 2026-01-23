@@ -29,21 +29,27 @@ export default function AnalyticsPage() {
   const { settings } = useSettings();
   const t = translations[settings.language];
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [siteStats, setSiteStats] = useState({ pv: 0, uv: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchTodos() {
+    async function fetchData() {
       try {
-        const res = await fetch('/api/todos');
-        const data = await res.json();
-        setTodos(data);
+        const [todosRes, statsRes] = await Promise.all([
+          fetch('/api/todos'),
+          fetch('/api/stats')
+        ]);
+        const todosData = await todosRes.json();
+        const statsData = await statsRes.json();
+        setTodos(todosData);
+        setSiteStats(statsData);
       } catch (error) {
-        console.error('Failed to fetch todos:', error);
+        console.error('Failed to fetch data:', error);
       } finally {
         setIsLoading(false);
       }
     }
-    fetchTodos();
+    fetchData();
   }, []);
 
   return (
@@ -84,7 +90,7 @@ export default function AnalyticsPage() {
             <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">{t.aggregatingRecords}</p>
           </div>
         ) : (
-          <AnalyticsDashboard todos={todos} />
+          <AnalyticsDashboard todos={todos} siteStats={siteStats} />
         )}
       </div>
     </main>

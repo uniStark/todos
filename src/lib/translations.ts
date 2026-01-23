@@ -33,6 +33,24 @@ export const translations = {
     themeLight: '浅色模式',
     themeDark: '深色模式',
     themeSystem: '跟随系统',
+
+    // Analytics
+    insights: '数据分析',
+    analyticsLoading: '正在加载分析引擎...',
+    aggregatingRecords: '正在汇总记录...',
+    past7Days: '过去 7 天',
+    pastMonth: '过去一个月',
+    allTime: '所有时间',
+    totalCreated: '总创建数',
+    successRate: '完成率',
+    dailyActivity: '每日动态',
+    creationVsCompletion: '创建 vs 完成',
+    recentTaskTimeline: '近期任务时间轴',
+    completionDuration: '完成耗时可视化',
+    took: '耗时约',
+    hours: '小时',
+    liveDataEngine: '实时数据引擎',
+    trend: '趋势',
   },
   en: {
     // Common
@@ -68,6 +86,24 @@ export const translations = {
     themeLight: 'Light Mode',
     themeDark: 'Dark Mode',
     themeSystem: 'Follow System',
+
+    // Analytics
+    insights: 'Insights',
+    analyticsLoading: 'Loading analytics engine...',
+    aggregatingRecords: 'Aggregating records...',
+    past7Days: 'Past 7 Days',
+    pastMonth: 'Past Month',
+    allTime: 'All Time',
+    totalCreated: 'Total Created',
+    successRate: 'Success Rate',
+    dailyActivity: 'Daily Activity',
+    creationVsCompletion: 'Creation vs Completion',
+    recentTaskTimeline: 'Recent Task Timeline',
+    completionDuration: 'Completion duration visual',
+    took: 'Took ~',
+    hours: 'h',
+    liveDataEngine: 'Live Data Engine',
+    trend: 'Trend',
   },
 };
 

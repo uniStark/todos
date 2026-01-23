@@ -7,7 +7,10 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { format, subDays, isWithinInterval, startOfDay, endOfDay, eachDayOfInterval } from 'date-fns';
+import { enUS, zhCN } from 'date-fns/locale';
 import { Todo } from '@/lib/storage';
+import { useSettings } from '@/contexts/SettingsContext';
+import { translations } from '@/lib/translations';
 import { Calendar, TrendingUp, CheckCircle2, Clock, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface AnalyticsDashboardProps {
@@ -17,6 +20,8 @@ interface AnalyticsDashboardProps {
 type Range = '7d' | '30d' | 'all';
 
 export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
+  const { settings } = useSettings();
+  const t = translations[settings.language];
   const [range, setRange] = useState<Range>('7d');
 
   const filteredData = useMemo(() => {
@@ -41,6 +46,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
     };
 
     const dayList = eachDayOfInterval(interval);
+    const locale = settings.language === 'zh' ? zhCN : enUS;
     
     return dayList.map(day => {
       const dayStart = startOfDay(day).getTime();
@@ -50,12 +56,12 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
       const completedCount = todos.filter(t => t.completedAt && t.completedAt >= dayStart && t.completedAt <= dayEnd).length;
       
       return {
-        date: format(day, 'MMM dd'),
+        date: format(day, 'MMM dd', { locale }),
         created: createdCount,
         completed: completedCount,
       };
     });
-  }, [todos, range]);
+  }, [todos, range, settings.language]);
 
   const stats = useMemo(() => {
     const completed = filteredData.filter(t => t.completed).length;
@@ -75,7 +81,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
             <div key={index} className="flex items-center gap-2 mb-1">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
               <p className="text-sm font-bold text-slate-900 dark:text-white">
-                <span className="opacity-60 capitalize">{entry.name}:</span> {entry.value}
+                <span className="opacity-60 capitalize">{entry.name === 'Created' ? t.created : t.completed}:</span> {entry.value}
               </p>
             </div>
           ))}
@@ -100,7 +106,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
-              {r === '7d' ? 'Past 7 Days' : r === '30d' ? 'Past Month' : 'All Time'}
+              {r === '7d' ? t.past7Days : r === '30d' ? t.pastMonth : t.allTime}
             </button>
           ))}
         </div>
@@ -109,9 +115,9 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: 'Total Created', value: stats.total, icon: Calendar, color: 'blue' },
-          { label: 'Completed', value: stats.completed, icon: CheckCircle2, color: 'emerald' },
-          { label: 'Success Rate', value: `${stats.rate}%`, icon: TrendingUp, color: 'orange' },
+          { label: t.totalCreated, value: stats.total, icon: Calendar, color: 'blue' },
+          { label: t.completed, value: stats.completed, icon: CheckCircle2, color: 'emerald' },
+          { label: t.successRate, value: `${stats.rate}%`, icon: TrendingUp, color: 'orange' },
         ].map((item, idx) => (
           <motion.div
             key={item.label}
@@ -143,10 +149,10 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
         >
           <div className="mb-8">
             <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
-              Daily Activity
-              <div className="px-2 py-0.5 bg-blue-500/10 text-blue-500 text-[10px] rounded-full">Trend</div>
+              {t.dailyActivity}
+              <div className="px-2 py-0.5 bg-blue-500/10 text-blue-500 text-[10px] rounded-full">{t.trend}</div>
             </h3>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Creation vs Completion</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{t.creationVsCompletion}</p>
           </div>
           
           <div className="h-[350px] w-full">
@@ -179,7 +185,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
                 <Area 
                   type="monotone" 
                   dataKey="created" 
-                  name="Created"
+                  name={t.created}
                   stroke="#3b82f6" 
                   strokeWidth={4}
                   fillOpacity={1} 
@@ -189,7 +195,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
                 <Area 
                   type="monotone" 
                   dataKey="completed" 
-                  name="Completed"
+                  name={t.completed}
                   stroke="#10b981" 
                   strokeWidth={4}
                   fillOpacity={1} 
@@ -209,9 +215,9 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
         >
           <div className="mb-8">
             <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 dark:text-white">
-              Recent Task Timeline
+              {t.recentTaskTimeline}
             </h3>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Completion duration visual</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{t.completionDuration}</p>
           </div>
 
           <div className="space-y-4">
@@ -227,7 +233,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
                       {todo.text}
                     </span>
                     <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
-                      Took ~{hours}h
+                      {t.took} {hours}{t.language === 'zh' ? t.hours : 'h'}
                     </span>
                   </div>
                   <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">

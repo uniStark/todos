@@ -2,26 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light Mode (Default) */
+/* Light Mode (Default) - Pro Max Refined */
 :root {
   --background: #ffffff;
   --background-secondary: #f8fafc;
   --foreground: #0f172a;
   --foreground-muted: #475569;
   --border: #e2e8f0;
-  --card-bg: #ffffff;
-  --shadow: rgba(15, 23, 42, 0.08);
+  --card-bg: rgba(255, 255, 255, 0.85);
+  --shadow: rgba(0, 0, 0, 0.03) 0px 2px 4px 0px, rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --accent: #f97316;
 }
 
-/* Dark Mode */
+/* Dark Mode - Pro Max OLED Refined */
 :root.dark {
   --background: #020617;
   --background-secondary: #0f172a;
   --foreground: #f1f5f9;
   --foreground-muted: #94a3b8;
   --border: #1e293b;
-  --card-bg: #0a0a0a;
-  --shadow: rgba(0, 0, 0, 0.3);
+  --card-bg: rgba(15, 23, 42, 0.6);
+  --shadow: rgba(0, 0, 0, 0.5) 0px 4px 6px -1px, rgba(0, 0, 0, 0.3) 0px 2px 4px -1px;
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --accent: #fb923c;
 }
 
 body {
@@ -31,69 +37,49 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  letter-spacing: -0.011em; /* Pro Max Typography Refinement */
 }
 
-/* Light mode specific backgrounds */
+/* Glassmorphism Pro Max */
+.glass-card {
+  @apply backdrop-blur-xl border border-white/20 dark:border-slate-700/50 shadow-lg;
+  background: var(--card-bg);
+}
+
+/* Professional Background Gradients */
 .bg-light-primary {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
+  background: radial-gradient(circle at 50% 0%, #f8fafc 0%, #ffffff 100%);
 }
 
 .dark .bg-light-primary {
-  background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%);
+  background: radial-gradient(circle at 50% 0%, #0f172a 0%, #020617 100%);
 }
 
-/* Card styles with proper contrast */
-.card-light {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: #e2e8f0;
+/* Stable Hover Feedback */
+.hover-lift {
+  @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl active:translate-y-0 active:scale-95;
 }
 
-.dark .card-light {
-  background: rgba(15, 23, 42, 0.5);
-  border-color: rgba(51, 65, 85, 0.5);
-}
-
-/* Optimize touch targets for mobile */
-@media (max-width: 640px) {
-  * {
-    -webkit-tap-highlight-color: transparent;
-  }
-}
-
-/* Custom scrollbar */
+/* Custom scrollbar Pro Max */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-100 dark:bg-slate-900;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-700 rounded-full hover:bg-slate-400 dark:hover:bg-slate-600;
-}
-
-/* Smooth transitions for theme switching */
-* {
-  transition-property: background-color, border-color, color;
-  transition-duration: 200ms;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  @apply bg-slate-200 dark:bg-slate-800 rounded-full hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors;
 }
 
 /* Respect user's motion preferences */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  * {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* Focus visible for accessibility */
-*:focus-visible {
-  @apply outline-2 outline-offset-2 outline-blue-500 dark:outline-blue-400;
 }
 

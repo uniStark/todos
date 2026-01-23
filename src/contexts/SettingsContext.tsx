@@ -17,7 +17,7 @@ interface SettingsContextType {
 const defaultSettings: Settings = {
   language: 'en',
   logoText: 'STARK',
-  timezone: 'UTC',
+  timezone: 'Asia/Shanghai',
   theme: 'dark',
 };
 

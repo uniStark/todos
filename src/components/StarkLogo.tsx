@@ -64,11 +64,11 @@ const StarkLogo: React.FC<StarkLogoProps> = ({ logoText: customLogoText }) => {
               repeat: Infinity,
               ease: 'easeInOut',
             }}
-            className="absolute inset-0 bg-blue-500/20 dark:bg-blue-400/20 rounded-lg sm:rounded-xl blur-xl"
+            className="absolute inset-0 bg-blue-500/30 dark:bg-blue-400/20 rounded-lg sm:rounded-xl blur-xl"
           />
           
           {/* Icon */}
-          <div className="relative bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl shadow-lg">
+          <div className="relative bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-blue-400/20">
             <CheckSquare className="text-white" size={24} strokeWidth={2.5} />
           </div>
         </motion.div>
@@ -82,7 +82,7 @@ const StarkLogo: React.FC<StarkLogoProps> = ({ logoText: customLogoText }) => {
               variants={letterVariants}
               initial="hidden"
               animate="visible"
-              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-white dark:via-slate-100 dark:to-white bg-clip-text text-transparent"
+              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter bg-gradient-to-br from-slate-900 via-slate-700 to-slate-900 dark:from-white dark:via-slate-100 dark:to-white bg-clip-text text-transparent drop-shadow-sm"
               style={{
                 fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
                 fontWeight: 900,
@@ -99,7 +99,7 @@ const StarkLogo: React.FC<StarkLogoProps> = ({ logoText: customLogoText }) => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.8, duration: 0.6 }}
-        className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm md:text-base text-slate-600 dark:text-slate-400 font-medium px-4 text-center sm:text-left"
+        className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm md:text-base text-slate-700 dark:text-slate-400 font-medium px-4 text-center sm:text-left"
       >
         <span className="whitespace-nowrap">{t.subtitle1}</span>
         <Zap size={14} className="text-blue-600 dark:text-blue-400 hidden sm:inline" />
@@ -111,7 +111,7 @@ const StarkLogo: React.FC<StarkLogoProps> = ({ logoText: customLogoText }) => {
         initial={{ width: 0 }}
         animate={{ width: '100%' }}
         transition={{ delay: 1, duration: 0.8, ease: 'easeOut' }}
-        className="h-0.5 bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700 to-transparent mt-3 sm:mt-4 max-w-xs sm:max-w-md"
+        className="h-0.5 bg-gradient-to-r from-transparent via-slate-400 dark:via-slate-700 to-transparent mt-3 sm:mt-4 max-w-xs sm:max-w-md"
       />
     </div>
   );

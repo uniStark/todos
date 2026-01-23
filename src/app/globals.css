@@ -10,7 +10,7 @@
   --foreground-muted: #475569;
   --border: #e2e8f0;
   --card-bg: #ffffff;
-  --shadow: rgba(15, 23, 42, 0.05);
+  --shadow: rgba(15, 23, 42, 0.08);
 }
 
 /* Dark Mode */
@@ -35,11 +35,11 @@ body {
 
 /* Light mode specific backgrounds */
 .bg-light-primary {
-  background: linear-gradient(to bottom right, #ffffff, #f8fafc, #f1f5f9);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
 }
 
 .dark .bg-light-primary {
-  background: linear-gradient(to bottom right, #020617, #0f172a, #020617);
+  background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%);
 }
 
 /* Card styles with proper contrast */

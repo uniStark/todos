@@ -136,9 +136,9 @@ export default function Home() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.3 }}
         onClick={() => router.push('/settings')}
-        className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 p-3 sm:p-3.5 bg-white dark:bg-slate-800 backdrop-blur-xl rounded-full border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer hover:scale-110"
+        className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 p-3 sm:p-3.5 bg-white/95 dark:bg-slate-800 backdrop-blur-xl rounded-full border border-slate-300 dark:border-slate-700 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer hover:scale-110"
       >
-        <SettingsIcon size={20} className="text-slate-900 dark:text-slate-300" />
+        <SettingsIcon size={20} className="text-slate-800 dark:text-slate-300" />
       </motion.button>
 
       {/* Hero Section with Logo */}

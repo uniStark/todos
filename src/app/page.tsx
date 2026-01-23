@@ -493,7 +493,7 @@ export default function Home() {
           <Heart size={14} strokeWidth={2.5} className="text-red-400 group-hover:text-red-500 group-hover:scale-125 transition-all" />
         </a>
         <p className="mt-4 text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-          Made with <span className="text-red-400">♥</span> by STARK Team
+          Made with <span className="text-red-400">♥</span> by STARK
         </p>
       </motion.footer>
 

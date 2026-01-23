@@ -11,9 +11,19 @@ interface AuthContextType {
   closeAuthModal: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 const AUTH_STORAGE_KEY = 'stark-todo-auth';
+
+// 默认值，用于 SSR
+const defaultContextValue: AuthContextType = {
+  isAuthenticated: false,
+  showAuthModal: false,
+  authenticate: async () => false,
+  logout: () => {},
+  requestAuth: () => {},
+  closeAuthModal: () => {},
+};
+
+const AuthContext = createContext<AuthContextType>(defaultContextValue);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -71,30 +81,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setShowAuthModal(false);
   }, []);
 
-  if (!isClient) {
-    return <>{children}</>;
-  }
-
-  return (
-    <AuthContext.Provider
-      value={{
+  // 始终提供 Context，确保子组件可以访问
+  const contextValue: AuthContextType = isClient
+    ? {
         isAuthenticated,
         showAuthModal,
         authenticate,
         logout,
         requestAuth,
         closeAuthModal,
-      }}
-    >
+      }
+    : defaultContextValue;
+
+  return (
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  return useContext(AuthContext);
 }

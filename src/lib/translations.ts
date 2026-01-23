@@ -61,6 +61,20 @@ export const translations = {
     noCompletedTasks: '暂无已完成的任务',
     pv: '访问量 (PV)',
     uv: '访客数 (UV)',
+
+    // Auth
+    authRequired: '需要验证权限',
+    authDescription: '请输入密码以修改任务',
+    enterPassword: '请输入密码',
+    passwordRequired: '请输入密码',
+    invalidPassword: '密码错误',
+    verify: '验证',
+    verifying: '验证中...',
+    authHint: '如忘记密码，请联系管理员',
+    authSuccess: '验证成功',
+    logout: '退出登录',
+    authenticated: '已验证',
+    notAuthenticated: '未验证',
   },
   en: {
     // Common
@@ -124,6 +138,20 @@ export const translations = {
     noCompletedTasks: 'No completed tasks',
     pv: 'Page Views (PV)',
     uv: 'Unique Visitors (UV)',
+
+    // Auth
+    authRequired: 'Authentication Required',
+    authDescription: 'Enter password to modify tasks',
+    enterPassword: 'Enter password',
+    passwordRequired: 'Password is required',
+    invalidPassword: 'Invalid password',
+    verify: 'Verify',
+    verifying: 'Verifying...',
+    authHint: 'Contact administrator if you forgot the password',
+    authSuccess: 'Verified successfully',
+    logout: 'Logout',
+    authenticated: 'Authenticated',
+    notAuthenticated: 'Not authenticated',
   },
 };
 

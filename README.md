@@ -56,6 +56,11 @@
   - Real-time KPI statistics (Total, Completed, Success Rate)
   - Flexible date ranges (7 Days, 30 Days, All Time)
 
+- **🔐 Access Control**
+  - Password-protected task operations (add, edit, delete)
+  - Client-side authentication persistence
+  - Configurable password via environment variable
+
 - **💾 Data Persistence**
   - Local JSON storage (no database required)
   - Data survives app restarts
@@ -138,7 +143,17 @@ A convenient shell script is provided for easy management:
    - Start the new container
    - Display logs automatically
 
-3. **Or manually with Docker Compose**
+3. **Configure authentication password (optional)**
+   ```bash
+   # Set custom password via environment variable
+   export AUTH_PASSWORD=your_custom_password
+   
+   # Or create a .env file
+   echo "AUTH_PASSWORD=your_custom_password" > .env
+   ```
+   > Default password is `stark123` if not configured.
+
+4. **Or manually with Docker Compose**
    ```bash
    # Start with Docker Compose
    docker compose up -d --build

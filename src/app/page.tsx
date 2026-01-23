@@ -4,9 +4,10 @@ import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Todo } from '@/lib/storage';
-import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3 } from 'lucide-react';
+import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { translations } from '@/lib/translations';
 
 // 动态导入 Logo 组件（非关键路径）
@@ -18,6 +19,7 @@ const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
 export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
+  const { isAuthenticated, requestAuth, logout } = useAuth();
   const t = translations[settings.language];
   const [todos, setTodos] = useState<Todo[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -59,6 +61,12 @@ export default function Home() {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
+    // 检查权限
+    if (!isAuthenticated) {
+      requestAuth();
+      return;
+    }
+
     try {
       const response = await fetch('/api/todos', {
         method: 'POST',
@@ -71,9 +79,15 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to add todo:', error);
     }
-  }, [inputValue, todos]);
+  }, [inputValue, todos, isAuthenticated, requestAuth]);
 
   const toggleTodo = useCallback(async (id: string, completed: boolean) => {
+    // 检查权限
+    if (!isAuthenticated) {
+      requestAuth();
+      return;
+    }
+
     try {
       const response = await fetch('/api/todos', {
         method: 'PUT',
@@ -85,16 +99,22 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to toggle todo:', error);
     }
-  }, [todos]);
+  }, [todos, isAuthenticated, requestAuth]);
 
   const deleteTodo = useCallback(async (id: string) => {
+    // 检查权限
+    if (!isAuthenticated) {
+      requestAuth();
+      return;
+    }
+
     try {
       await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
       setTodos(todos.filter((t) => t.id !== id));
     } catch (error) {
       console.error('Failed to delete todo:', error);
     }
-  }, [todos]);
+  }, [todos, isAuthenticated, requestAuth]);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -135,6 +155,27 @@ export default function Home() {
     <main className="min-h-screen bg-light-primary transition-colors duration-500">
       {/* Settings & Analytics Buttons (Fixed Top Right) */}
       <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex flex-col gap-3">
+        {/* Auth Status Indicator */}
+        <motion.button
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={isAuthenticated ? logout : requestAuth}
+          className={`p-3 backdrop-blur-xl rounded-2xl border shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer ${
+            isAuthenticated 
+              ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-300 dark:border-emerald-700' 
+              : 'bg-amber-500/10 dark:bg-amber-500/20 border-amber-300 dark:border-amber-700'
+          }`}
+          title={isAuthenticated ? t.logout : t.authRequired}
+        >
+          {isAuthenticated ? (
+            <ShieldCheck size={22} className="text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <ShieldOff size={22} className="text-amber-600 dark:text-amber-400" />
+          )}
+        </motion.button>
         <motion.button
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: 1, scale: 1 }}

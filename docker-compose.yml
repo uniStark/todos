@@ -10,6 +10,8 @@ services:
     environment:
       - NODE_ENV=production
       - DATA_DIR=/app/data
+      # 设置访问密码（可自定义，默认为 stark123）
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-stark123}
     restart: always
 
 volumes:

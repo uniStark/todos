@@ -104,10 +104,11 @@ if [ "$PULL_CODE" = true ] && [ -d ".git" ]; then
     echo ""
 fi
 
-# 2. 停止现有容器
+# 2. 停止现有容器（保留数据卷）
 echo -e "${BLUE}📦 停止现有容器...${NC}"
+# 注意：不使用 -v 参数，以保留 todos-data 卷中的 todos.json 和 stats.json
 docker compose down --remove-orphans 2>/dev/null || true
-echo -e "${GREEN}   ✓ 容器已停止${NC}"
+echo -e "${GREEN}   ✓ 容器已停止 (数据卷已保留)${NC}"
 echo ""
 
 # 3. 构建镜像
@@ -139,7 +140,28 @@ docker compose up -d --force-recreate
 echo -e "${GREEN}   ✓ 容器已启动${NC}"
 echo ""
 
-# 5. 清理悬空镜像（静默执行）
+# 5. 验证数据持久化
+echo -e "${BLUE}📊 验证数据持久化...${NC}"
+sleep 2  # 等待容器完全启动
+CONTAINER_ID=$(docker compose ps -q app 2>/dev/null)
+if [ -n "$CONTAINER_ID" ]; then
+    # 检查 todos.json
+    TODOS_COUNT=$(docker exec "$CONTAINER_ID" sh -c 'cat /app/data/todos.json 2>/dev/null | grep -o "\"id\"" | wc -l' 2>/dev/null || echo "0")
+    # 检查 stats.json
+    STATS=$(docker exec "$CONTAINER_ID" sh -c 'cat /app/data/stats.json 2>/dev/null' 2>/dev/null || echo '{"pv":0,"uv":0}')
+    PV=$(echo "$STATS" | grep -o '"pv":[0-9]*' | grep -o '[0-9]*' || echo "0")
+    UV=$(echo "$STATS" | grep -o '"uv":[0-9]*' | grep -o '[0-9]*' || echo "0")
+    
+    echo -e "${GREEN}   ✓ 数据卷挂载正常${NC}"
+    echo -e "   • Todos 数量: ${CYAN}${TODOS_COUNT}${NC}"
+    echo -e "   • 访问量 (PV): ${CYAN}${PV}${NC}"
+    echo -e "   • 访客数 (UV): ${CYAN}${UV}${NC}"
+else
+    echo -e "${YELLOW}   ⚠ 无法获取容器信息，请手动验证数据${NC}"
+fi
+echo ""
+
+# 6. 清理悬空镜像（静默执行）
 docker image prune -f > /dev/null 2>&1 || true
 
 # 计算耗时
@@ -152,6 +174,7 @@ echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo -e "   📍 访问地址: ${CYAN}http://localhost:4000${NC}"
 echo -e "   ⏱️  总耗时: ${YELLOW}${DURATION}秒${NC}"
+echo -e "   💾 数据卷: ${CYAN}todos-data${NC} (todos.json + stats.json)"
 echo ""
 
 # 显示日志

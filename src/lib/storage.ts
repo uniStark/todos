@@ -64,27 +64,45 @@ export interface Stats {
 
 export const getStats = (): Stats => {
   try {
+    // 确保数据目录存在
+    const dir = path.dirname(STATS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`[Storage] Created data directory: ${dir}`);
+    }
+    
     if (!fs.existsSync(STATS_FILE)) {
       const initialStats = { pv: 0, uv: 0 };
-      fs.writeFileSync(STATS_FILE, JSON.stringify(initialStats), 'utf-8');
+      fs.writeFileSync(STATS_FILE, JSON.stringify(initialStats, null, 2), 'utf-8');
+      console.log(`[Storage] Created new stats file: ${STATS_FILE}`);
       return initialStats;
     }
+    
     const data = fs.readFileSync(STATS_FILE, 'utf-8');
-    return JSON.parse(data);
+    const stats = JSON.parse(data);
+    console.log(`[Storage] Loaded stats from ${STATS_FILE}: PV=${stats.pv}, UV=${stats.uv}`);
+    return stats;
   } catch (error) {
     console.error('[Storage] Error reading stats:', error);
     return { pv: 0, uv: 0 };
   }
 };
 
-export const updateStats = (isNewVisitor: boolean) => {
+export const updateStats = (isNewVisitor: boolean): Stats => {
   try {
+    // 确保数据目录存在
+    const dir = path.dirname(STATS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
     const stats = getStats();
     stats.pv += 1;
     if (isNewVisitor) {
       stats.uv += 1;
     }
     fs.writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2), 'utf-8');
+    console.log(`[Storage] Updated stats: PV=${stats.pv}, UV=${stats.uv}`);
     return stats;
   } catch (error) {
     console.error('[Storage] Error updating stats:', error);

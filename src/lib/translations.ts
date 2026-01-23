@@ -51,6 +51,8 @@ export const translations = {
     hours: '小时',
     liveDataEngine: '实时数据引擎',
     trend: '趋势',
+    createdLabel: '已创建',
+    completedLabel: '已完成',
   },
   en: {
     // Common
@@ -104,6 +106,8 @@ export const translations = {
     hours: 'h',
     liveDataEngine: 'Live Data Engine',
     trend: 'Trend',
+    createdLabel: 'Created',
+    completedLabel: 'Completed',
   },
 };
 

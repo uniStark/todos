@@ -81,7 +81,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
             <div key={index} className="flex items-center gap-2 mb-1">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
               <p className="text-sm font-bold text-slate-900 dark:text-white">
-                <span className="opacity-60 capitalize">{entry.name === 'Created' ? t.created : t.completed}:</span> {entry.value}
+                <span className="opacity-60 capitalize">{entry.name}:</span> {entry.value}
               </p>
             </div>
           ))}
@@ -185,7 +185,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
                 <Area 
                   type="monotone" 
                   dataKey="created" 
-                  name={t.created}
+                  name={t.createdLabel}
                   stroke="#3b82f6" 
                   strokeWidth={4}
                   fillOpacity={1} 
@@ -195,7 +195,7 @@ export default function AnalyticsDashboard({ todos }: AnalyticsDashboardProps) {
                 <Area 
                   type="monotone" 
                   dataKey="completed" 
-                  name={t.completed}
+                  name={t.completedLabel}
                   stroke="#10b981" 
                   strokeWidth={4}
                   fillOpacity={1} 

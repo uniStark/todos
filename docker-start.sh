@@ -22,4 +22,4 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # 自动显示日志
-docker compose logs -f
+# docker compose logs -f

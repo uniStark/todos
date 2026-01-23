@@ -45,10 +45,10 @@ docker image prune -f
 echo ""
 echo "✅ 更新完成！"
 echo "📍 访问地址: http://localhost:4000"
-echo ""
-echo "📋 正在显示后端日志 (Ctrl+C 退出日志查看)..."
+# echo ""
+# echo "📋 正在显示后端日志 (Ctrl+C 退出日志查看)..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # 显示日志
-docker compose logs -f
+# docker compose logs -f

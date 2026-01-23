@@ -113,28 +113,30 @@ export default function AnalyticsDashboard({ todos, siteStats }: AnalyticsDashbo
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      {/* KPI Grid Pro Max - Improved Alignment & Consistency */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-6">
         {[
-          { label: t.pv, value: siteStats.pv, icon: Eye, color: 'indigo' },
-          { label: t.uv, value: siteStats.uv, icon: Users, color: 'purple' },
-          { label: t.totalCreated, value: stats.total, icon: Calendar, color: 'blue' },
-          { label: t.completed, value: stats.completed, icon: CheckCircle2, color: 'emerald' },
-          { label: t.successRate, value: `${stats.rate}%`, icon: TrendingUp, color: 'orange' },
+          { label: t.pv, value: siteStats.pv, icon: Eye, color: 'indigo', bg: 'bg-indigo-500/10', text: 'text-indigo-500' },
+          { label: t.uv, value: siteStats.uv, icon: Users, color: 'purple', bg: 'bg-purple-500/10', text: 'text-purple-500' },
+          { label: t.totalCreated, value: stats.total, icon: Calendar, color: 'blue', bg: 'bg-blue-500/10', text: 'text-blue-500' },
+          { label: t.completed, value: stats.completed, icon: CheckCircle2, color: 'emerald', bg: 'bg-emerald-500/10', text: 'text-emerald-500' },
+          { label: t.successRate, value: `${stats.rate}%`, icon: TrendingUp, color: 'orange', bg: 'bg-orange-500/10', text: 'text-orange-500' },
         ].map((item, idx) => (
           <motion.div
             key={item.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="glass-card p-6 rounded-[2.5rem] flex items-center gap-6"
+            className="glass-card p-5 lg:p-6 rounded-[2.5rem] flex items-center gap-4 lg:gap-6 hover-lift"
           >
-            <div className={`p-4 bg-${item.color}-500/10 rounded-2xl text-${item.color}-500`}>
+            <div className={`p-4 ${item.bg} ${item.text} rounded-2xl shrink-0 transition-all duration-500`}>
               <item.icon size={24} strokeWidth={2.5} />
             </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{item.label}</p>
-              <p className="text-3xl font-black tabular-nums tracking-tighter text-slate-900 dark:text-white">
+            <div className="min-w-0 flex-1 flex flex-col justify-center">
+              <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-slate-400 mb-0.5 leading-tight">
+                {item.label}
+              </p>
+              <p className="text-2xl lg:text-3xl font-black tabular-nums tracking-tighter text-slate-900 dark:text-white truncate">
                 {item.value}
               </p>
             </div>

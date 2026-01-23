@@ -24,7 +24,7 @@ const StarkLogo: React.FC<StarkLogoProps> = ({ logoText: customLogoText }) => {
       transition: {
         delay: i * 0.08,
         duration: 0.8,
-        ease: [0.22, 1, 0.36, 1], // Custom Pro Max Ease
+        ease: [0.22, 1, 0.36, 1] as const, // 使用 as const 修复类型校验
       },
     }),
   };
@@ -38,7 +38,7 @@ const StarkLogo: React.FC<StarkLogoProps> = ({ logoText: customLogoText }) => {
       transition: {
         delay: 0.4,
         duration: 0.7,
-        ease: [0.22, 1, 0.36, 1],
+        ease: [0.22, 1, 0.36, 1] as const, // 使用 as const 修复类型校验
       },
     },
   };

@@ -32,7 +32,15 @@ fi
 
 # 3. 重新构建并启动
 echo "🏗️  开始构建最新镜像 (使用 --no-cache 确保完全重新安装依赖)..."
-docker compose build --no-cache
+# 彻底清理旧镜像和容器，确保构建环境干净
+docker compose down --rmi local --volumes --remove-orphans
+
+if docker compose build --no-cache; then
+    echo "✅ 镜像构建成功！"
+else
+    echo "❌ 镜像构建失败！请检查上方输出的错误信息。"
+    exit 1
+fi
 
 echo ""
 echo "🚀 启动新容器 (使用 --force-recreate 确保完全替换)..."
@@ -45,10 +53,8 @@ docker image prune -f
 echo ""
 echo "✅ 更新完成！"
 echo "📍 访问地址: http://localhost:4000"
-# echo ""
-# echo "📋 正在显示后端日志 (Ctrl+C 退出日志查看)..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # 显示日志
-# docker compose logs -f
+# docker compose logs -f --tail 100

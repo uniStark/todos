@@ -4,7 +4,7 @@ import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Todo } from '@/lib/storage';
-import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon } from 'lucide-react';
+import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { translations } from '@/lib/translations';
@@ -130,18 +130,31 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-light-primary transition-colors duration-500">
-      {/* Settings Button (Fixed Top Right) */}
-      <motion.button
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.3 }}
-        whileHover={{ scale: 1.1, rotate: 90 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => router.push('/settings')}
-        className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer"
-      >
-        <SettingsIcon size={22} className="text-slate-700 dark:text-slate-300" />
-      </motion.button>
+      {/* Settings & Analytics Buttons (Fixed Top Right) */}
+      <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex flex-col gap-3">
+        <motion.button
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3 }}
+          whileHover={{ scale: 1.1, rotate: 90 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => router.push('/settings')}
+          className="p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer"
+        >
+          <SettingsIcon size={22} className="text-slate-700 dark:text-slate-300" />
+        </motion.button>
+        <motion.button
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.4 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => router.push('/analytics')}
+          className="p-3 bg-blue-600 dark:bg-blue-500 text-white backdrop-blur-xl rounded-2xl shadow-xl hover:shadow-2xl hover:bg-blue-700 dark:hover:bg-blue-400 transition-all duration-300 cursor-pointer"
+        >
+          <BarChart3 size={22} strokeWidth={2.5} />
+        </motion.button>
+      </div>
 
       {/* Hero Section with Logo */}
       <section className="w-full pt-12 sm:pt-16 pb-8 sm:pb-12">

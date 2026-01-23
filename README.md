@@ -50,6 +50,12 @@
   - Soft deletion (logical delete with data preservation)
   - Filter tasks by status (All, Active, Completed)
 
+- **📊 Interactive Analytics Dashboard**
+  - Daily Activity trend charts (Creation vs Completion)
+  - Task completion timeline (Gantt-style visual)
+  - Real-time KPI statistics (Total, Completed, Success Rate)
+  - Flexible date ranges (7 Days, 30 Days, All Time)
+
 - **💾 Data Persistence**
   - Local JSON storage (no database required)
   - Data survives app restarts
@@ -185,12 +191,14 @@ stark-todo-list/
 │   ├── app/                    # Next.js App Router
 │   │   ├── api/               # API Routes
 │   │   │   └── todos/         # Todo CRUD endpoints
+│   │   ├── analytics/         # Insights & Charts page
 │   │   ├── settings/          # Settings page
 │   │   ├── page.tsx           # Main page
 │   │   ├── layout.tsx         # Root layout
 │   │   └── globals.css        # Global styles
 │   ├── components/            # React components
-│   │   └── StarkLogo.tsx      # Animated logo
+│   │   ├── StarkLogo.tsx      # Animated logo
+│   │   └── AnalyticsDashboard.tsx # Data visualization
 │   ├── contexts/              # React contexts
 │   │   └── SettingsContext.tsx
 │   ├── lib/                   # Utility functions
@@ -199,6 +207,9 @@ stark-todo-list/
 │   │   └── timezones.ts       # Timezone data
 │   └── ...
 ├── public/                    # Static assets
+├── scripts/
+│   ├── generate-icons.js      # Favicon generator
+│   └── generate-mock-data.js  # Demo data generator
 ├── docker-compose.yml         # Docker Compose config
 ├── Dockerfile                 # Docker image config
 ├── run.sh                     # Management script
@@ -213,6 +224,7 @@ stark-todo-list/
 - **Language**: TypeScript 5
 - **Styling**: Tailwind CSS 3.4
 - **Animation**: Framer Motion
+- **Charts**: Recharts
 - **Icons**: Lucide React
 - **Containerization**: Docker & Docker Compose
 

@@ -3,58 +3,160 @@
 # STARK Todo List - Docker 快速更新脚本
 # 用于快速停止、重新构建并启动 Docker 容器
 
-echo "🔄 正在更新 STARK Todo List (Docker)..."
+set -e
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# 默认配置
+USE_CACHE=true
+PULL_CODE=true
+SHOW_LOGS=false
+
+# 帮助信息
+show_help() {
+    echo -e "${CYAN}STARK Todo List - Docker 快速更新脚本${NC}"
+    echo ""
+    echo "用法: ./docker-update.sh [选项]"
+    echo ""
+    echo "选项:"
+    echo "  -f, --full       完全重建（不使用缓存，较慢但更彻底）"
+    echo "  -q, --quick      快速更新（跳过 git pull，使用缓存）"
+    echo "  -l, --logs       更新完成后显示日志"
+    echo "  -h, --help       显示帮助信息"
+    echo ""
+    echo "示例:"
+    echo "  ./docker-update.sh          # 默认：拉取代码 + 使用缓存构建"
+    echo "  ./docker-update.sh -f       # 完全重建（不使用缓存）"
+    echo "  ./docker-update.sh -q       # 快速模式（跳过 git pull）"
+    echo "  ./docker-update.sh -q -l    # 快速模式 + 显示日志"
+    echo ""
+}
+
+# 解析命令行参数
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -f|--full)
+            USE_CACHE=false
+            shift
+            ;;
+        -q|--quick)
+            PULL_CODE=false
+            shift
+            ;;
+        -l|--logs)
+            SHOW_LOGS=true
+            shift
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}未知选项: $1${NC}"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+echo ""
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}   🔄 STARK Todo List - Docker 更新${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# 1. 停止并移除现有容器
-echo "📦 停止现有容器..."
-docker compose down
-
+# 显示当前配置
+echo -e "${BLUE}📋 更新配置:${NC}"
+if [ "$PULL_CODE" = true ]; then
+    echo -e "   • Git Pull: ${GREEN}是${NC}"
+else
+    echo -e "   • Git Pull: ${YELLOW}跳过${NC}"
+fi
+if [ "$USE_CACHE" = true ]; then
+    echo -e "   • 构建缓存: ${GREEN}启用${NC} (快速)"
+else
+    echo -e "   • 构建缓存: ${YELLOW}禁用${NC} (完全重建)"
+fi
 echo ""
 
-# 2. 拉取最新代码
-if [ -d ".git" ]; then
-    echo "📥 正在获取远程最新代码..."
-    # 获取当前分支名称
+# 记录开始时间
+START_TIME=$(date +%s)
+
+# 1. 拉取最新代码
+if [ "$PULL_CODE" = true ] && [ -d ".git" ]; then
+    echo -e "${BLUE}📥 正在获取远程最新代码...${NC}"
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    echo "📍 当前分支: $CURRENT_BRANCH"
+    echo -e "   当前分支: ${CYAN}$CURRENT_BRANCH${NC}"
     
-    # 尝试拉取代码
-    if git pull origin "$CURRENT_BRANCH"; then
-        echo "✅ 代码拉取成功"
+    if git pull origin "$CURRENT_BRANCH" 2>&1; then
+        echo -e "${GREEN}   ✓ 代码已更新${NC}"
     else
-        echo "❌ 代码拉取失败！可能是存在本地冲突。"
-        echo "💡 提示: 如果您想强制覆盖本地更改，请运行 'git reset --hard origin/$CURRENT_BRANCH'"
+        echo -e "${RED}   ✗ 代码拉取失败！${NC}"
+        echo -e "${YELLOW}   💡 提示: 运行 'git reset --hard origin/$CURRENT_BRANCH' 强制覆盖本地更改${NC}"
         exit 1
     fi
     echo ""
 fi
 
-# 3. 重新构建并启动
-echo "🏗️  开始构建最新镜像 (使用 --no-cache 确保完全重新安装依赖)..."
-# 彻底清理旧镜像和容器，确保构建环境干净。注意：不要使用 --volumes 或 -v，否则会删除持久化数据！
-docker compose down --rmi local --remove-orphans
+# 2. 停止现有容器
+echo -e "${BLUE}📦 停止现有容器...${NC}"
+docker compose down --remove-orphans 2>/dev/null || true
+echo -e "${GREEN}   ✓ 容器已停止${NC}"
+echo ""
 
-if docker compose build --no-cache; then
-    echo "✅ 镜像构建成功！"
+# 3. 构建镜像
+echo -e "${BLUE}🏗️  构建 Docker 镜像...${NC}"
+if [ "$USE_CACHE" = true ]; then
+    # 使用缓存构建（快速）
+    if docker compose build 2>&1 | while read line; do echo -e "   $line"; done; then
+        echo -e "${GREEN}   ✓ 镜像构建成功${NC}"
+    else
+        echo -e "${RED}   ✗ 镜像构建失败！${NC}"
+        exit 1
+    fi
 else
-    echo "❌ 镜像构建失败！请检查上方输出的错误信息。"
-    exit 1
+    # 不使用缓存（完全重建）
+    echo -e "${YELLOW}   (完全重建模式，可能需要几分钟...)${NC}"
+    docker compose down --rmi local 2>/dev/null || true
+    if docker compose build --no-cache 2>&1 | while read line; do echo -e "   $line"; done; then
+        echo -e "${GREEN}   ✓ 镜像构建成功${NC}"
+    else
+        echo -e "${RED}   ✗ 镜像构建失败！${NC}"
+        exit 1
+    fi
 fi
-
 echo ""
-echo "🚀 启动新容器 (使用 --force-recreate 确保完全替换)..."
+
+# 4. 启动新容器
+echo -e "${BLUE}🚀 启动新容器...${NC}"
 docker compose up -d --force-recreate
-
+echo -e "${GREEN}   ✓ 容器已启动${NC}"
 echo ""
-echo "🧹 清理未使用的旧镜像..."
-docker image prune -f
 
+# 5. 清理悬空镜像（静默执行）
+docker image prune -f > /dev/null 2>&1 || true
+
+# 计算耗时
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}   ✅ 更新完成！${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "✅ 更新完成！"
-echo "📍 访问地址: http://localhost:4000"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "   📍 访问地址: ${CYAN}http://localhost:4000${NC}"
+echo -e "   ⏱️  总耗时: ${YELLOW}${DURATION}秒${NC}"
 echo ""
 
 # 显示日志
-# docker compose logs -f --tail 100
+if [ "$SHOW_LOGS" = true ]; then
+    echo -e "${BLUE}📋 显示容器日志 (Ctrl+C 退出)...${NC}"
+    echo ""
+    docker compose logs -f --tail 50
+fi

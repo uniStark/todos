@@ -167,8 +167,9 @@ A convenient shell script is provided for easy management:
    ./docker-update.sh
    ```
 
-5. **Data Persistence**
-   - Data is stored in a Docker volume named `todos-data`
+5. **Data Persistence & Safe Updates**
+   - Data is stored in a Docker volume named `todos-data`, which persists `todos.json` and `stats.json`.
+   - **Important**: Always use `./docker-update.sh` for updates. Avoid running `docker compose down -v` manually, as the `-v` flag will permanently delete your data volumes.
    - To backup data:
      ```bash
      docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar czf /backup/todos-backup.tar.gz -C /data .

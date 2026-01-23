@@ -167,8 +167,9 @@
    ./docker-update.sh
    ```
 
-5. **数据持久化**
-   - 数据存储在名为 `todos-data` 的 Docker 卷中
+5. **数据持久化与安全更新**
+   - 数据存储在名为 `todos-data` 的 Docker 卷中，持久化存储 `todos.json` 和 `stats.json`。
+   - **重要提示**：在更新容器时，请务必使用 `./docker-update.sh`。不要手动运行 `docker compose down -v`，因为 `-v` 参数会永久删除您的所有数据卷。
    - 备份数据：
      ```bash
      docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar czf /backup/todos-backup.tar.gz -C /data .

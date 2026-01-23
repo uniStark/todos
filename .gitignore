@@ -34,3 +34,4 @@ todos.json
 # logs
 app.log
 app.pid
+stats.json

@@ -59,10 +59,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # 创建数据目录并设置权限
 RUN mkdir -p /app/data && \
-    touch /app/data/todos.json && \
-    echo "[]" > /app/data/todos.json && \
-    touch /app/data/stats.json && \
-    echo "{\"pv\": 0, \"uv\": 0, \"visitors\": []}" > /app/data/stats.json && \
     chown -R nextjs:nodejs /app/data && \
     chmod -R 755 /app/data
 

@@ -32,8 +32,8 @@ fi
 
 # 3. 重新构建并启动
 echo "🏗️  开始构建最新镜像 (使用 --no-cache 确保完全重新安装依赖)..."
-# 彻底清理旧镜像和容器，确保构建环境干净
-docker compose down --rmi local --volumes --remove-orphans
+# 彻底清理旧镜像和容器，确保构建环境干净。注意：不要使用 --volumes 或 -v，否则会删除持久化数据！
+docker compose down --rmi local --remove-orphans
 
 if docker compose build --no-cache; then
     echo "✅ 镜像构建成功！"

@@ -4,7 +4,7 @@ import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Todo } from '@/lib/storage';
-import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, LogOut } from 'lucide-react';
+import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, LogOut, Pencil, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +26,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [isMobile, setIsMobile] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   useEffect(() => {
     fetchTodos();
@@ -115,6 +117,44 @@ export default function Home() {
       console.error('Failed to delete todo:', error);
     }
   }, [todos, isAuthenticated, requestAuth]);
+
+  // 开始编辑
+  const startEdit = useCallback((id: string, text: string) => {
+    // 检查权限
+    if (!isAuthenticated) {
+      requestAuth();
+      return;
+    }
+    setEditingId(id);
+    setEditText(text);
+  }, [isAuthenticated, requestAuth]);
+
+  // 取消编辑
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditText('');
+  }, []);
+
+  // 保存编辑
+  const saveEdit = useCallback(async (id: string) => {
+    if (!editText.trim()) {
+      cancelEdit();
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/todos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, text: editText.trim() }),
+      });
+      const updatedTodo = await response.json();
+      setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
+      cancelEdit();
+    } catch (error) {
+      console.error('Failed to update todo:', error);
+    }
+  }, [editText, todos, cancelEdit]);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -341,38 +381,91 @@ export default function Home() {
                           {todo.completed && <CheckCheck className="text-white" size={18} strokeWidth={3} />}
                         </motion.button>
 
-                        <div className="flex-1 min-w-0" onClick={() => toggleTodo(todo.id, todo.completed)}>
-                          <p
-                            className={`text-lg sm:text-xl font-semibold mb-1 transition-all duration-500 break-words ${
-                              todo.completed
-                                ? 'line-through text-slate-400 dark:text-slate-500 italic'
-                                : 'text-slate-900 dark:text-white'
-                            }`}
-                          >
-                            {todo.text}
-                          </p>
-                          <div className="flex items-center gap-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
-                            <span className="flex items-center gap-1.5">
-                              <Calendar size={12} strokeWidth={2.5} />
-                              {formatDate(todo.createdAt)}
-                            </span>
-                            {todo.completedAt && (
-                              <span className="flex items-center gap-1.5 text-emerald-500">
-                                <CheckCircle2 size={12} strokeWidth={2.5} />
-                                {formatDate(todo.completedAt)}
-                              </span>
-                            )}
-                          </div>
+                        <div className="flex-1 min-w-0">
+                          {editingId === todo.id ? (
+                            // 编辑模式
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveEdit(todo.id);
+                                  if (e.key === 'Escape') cancelEdit();
+                                }}
+                                autoFocus
+                                className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                              />
+                              <motion.button
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => saveEdit(todo.id)}
+                                className="p-2 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors cursor-pointer"
+                              >
+                                <Check size={18} strokeWidth={3} />
+                              </motion.button>
+                              <motion.button
+                                whileTap={{ scale: 0.9 }}
+                                onClick={cancelEdit}
+                                className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors cursor-pointer"
+                              >
+                                <X size={18} strokeWidth={3} />
+                              </motion.button>
+                            </div>
+                          ) : (
+                            // 显示模式
+                            <div onClick={() => toggleTodo(todo.id, todo.completed)}>
+                              <p
+                                className={`text-lg sm:text-xl font-semibold mb-1 transition-all duration-500 break-words ${
+                                  todo.completed
+                                    ? 'line-through text-slate-400 dark:text-slate-500 italic'
+                                    : 'text-slate-900 dark:text-white'
+                                }`}
+                              >
+                                {todo.text}
+                              </p>
+                              <div className="flex items-center gap-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
+                                <span className="flex items-center gap-1.5">
+                                  <Calendar size={12} strokeWidth={2.5} />
+                                  {formatDate(todo.createdAt)}
+                                </span>
+                                {todo.completedAt && (
+                                  <span className="flex items-center gap-1.5 text-emerald-500">
+                                    <CheckCircle2 size={12} strokeWidth={2.5} />
+                                    {formatDate(todo.completedAt)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        <motion.button
-                          whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => deleteTodo(todo.id)}
-                          className="p-3 rounded-2xl text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-all duration-300 cursor-pointer"
-                        >
-                          <Trash2 size={20} strokeWidth={2.5} />
-                        </motion.button>
+                        {/* 操作按钮 */}
+                        {editingId !== todo.id && (
+                          <div className="flex items-center gap-1">
+                            <motion.button
+                              whileHover={{ scale: 1.1, backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEdit(todo.id, todo.text);
+                              }}
+                              className="p-3 rounded-2xl text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-all duration-300 cursor-pointer"
+                            >
+                              <Pencil size={18} strokeWidth={2.5} />
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteTodo(todo.id);
+                              }}
+                              className="p-3 rounded-2xl text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-all duration-300 cursor-pointer"
+                            >
+                              <Trash2 size={20} strokeWidth={2.5} />
+                            </motion.button>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ))

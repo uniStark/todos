@@ -15,10 +15,10 @@ interface SettingsContextType {
 }
 
 const defaultSettings: Settings = {
-  language: 'zh',
+  language: 'en',
   logoText: 'STARK',
-  timezone: 'Asia/Shanghai',
-  theme: 'system',
+  timezone: 'UTC',
+  theme: 'dark',
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -35,16 +35,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
-        setSettings(parsed);
+        // Merge with default settings to ensure all fields exist
+        const mergedSettings = { ...defaultSettings, ...parsed };
+        setSettings(mergedSettings);
+        console.log('[Settings] Loaded from localStorage:', mergedSettings);
         // Apply theme immediately after loading
         requestAnimationFrame(() => {
-          applyTheme(parsed.theme);
+          applyTheme(mergedSettings.theme);
         });
       } catch (error) {
-        console.error('Failed to parse settings:', error);
+        console.error('[Settings] Failed to parse settings:', error);
+        // Use default settings on error
+        setSettings(defaultSettings);
         applyTheme(defaultSettings.theme);
       }
     } else {
+      console.log('[Settings] No saved settings, using defaults:', defaultSettings);
+      // Save default settings to localStorage
+      localStorage.setItem('stark-settings', JSON.stringify(defaultSettings));
       applyTheme(defaultSettings.theme);
     }
   }, []);
@@ -52,8 +60,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isClient) return;
     
-    // Save settings to localStorage
-    localStorage.setItem('stark-settings', JSON.stringify(settings));
+    // Save settings to localStorage whenever they change
+    try {
+      localStorage.setItem('stark-settings', JSON.stringify(settings));
+      console.log('[Settings] Saved to localStorage:', settings);
+    } catch (error) {
+      console.error('[Settings] Failed to save settings:', error);
+    }
     
     // Apply theme
     applyTheme(settings.theme);
@@ -111,6 +124,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const updateSettings = (newSettings: Partial<Settings>) => {
     setSettings(prev => {
       const updated = { ...prev, ...newSettings };
+      
+      console.log('[Settings] Updating settings:', { old: prev, new: newSettings, updated });
       
       // 如果更新了主题，立即应用
       if (newSettings.theme !== undefined) {

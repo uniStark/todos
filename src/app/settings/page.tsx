@@ -1,9 +1,9 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { ArrowLeft, Globe, Type, Clock, Sun, Moon, Monitor } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Globe, Type, Clock, Sun, Moon, Monitor, Check } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
 import { translations, Language } from '@/lib/translations';
 import { TIMEZONES } from '@/lib/timezones';
@@ -12,16 +12,57 @@ export default function SettingsPage() {
   const router = useRouter();
   const { settings, updateSettings } = useSettings();
   const [tempLogoText, setTempLogoText] = useState(settings.logoText);
+  const [showSaved, setShowSaved] = useState(false);
   const t = translations[settings.language];
+
+  // Update tempLogoText when settings.logoText changes
+  useEffect(() => {
+    setTempLogoText(settings.logoText);
+  }, [settings.logoText]);
 
   const handleSave = () => {
     updateSettings({ logoText: tempLogoText });
-    router.push('/');
+    showSaveNotification();
+  };
+
+  const showSaveNotification = () => {
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 2000);
+  };
+
+  const handleLanguageChange = (lang: Language) => {
+    updateSettings({ language: lang });
+    showSaveNotification();
+  };
+
+  const handleTimezoneChange = (timezone: string) => {
+    updateSettings({ timezone });
+    showSaveNotification();
+  };
+
+  const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
+    updateSettings({ theme });
+    showSaveNotification();
   };
 
   return (
     <main className="min-h-screen bg-light-primary">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+        {/* Save Notification */}
+        <AnimatePresence>
+          {showSaved && (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
+            >
+              <Check size={20} />
+              <span className="font-medium">{t.language === 'zh' ? '设置已保存' : 'Settings Saved'}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -57,7 +98,7 @@ export default function SettingsPage() {
                   {(['zh', 'en'] as Language[]).map((lang) => (
                     <button
                       key={lang}
-                      onClick={() => updateSettings({ language: lang })}
+                      onClick={() => handleLanguageChange(lang)}
                       className={`px-4 py-2 rounded-lg font-medium transition-all cursor-pointer ${
                         settings.language === lang
                           ? 'bg-blue-600 text-white shadow-md'
@@ -123,7 +164,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{t.timezoneDesc}</p>
                 <select
                   value={settings.timezone}
-                  onChange={(e) => updateSettings({ timezone: e.target.value })}
+                  onChange={(e) => handleTimezoneChange(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
                   {TIMEZONES.map((tz) => (
@@ -158,7 +199,7 @@ export default function SettingsPage() {
                   ].map(({ value, icon: Icon, label }) => (
                     <button
                       key={value}
-                      onClick={() => updateSettings({ theme: value })}
+                      onClick={() => handleThemeChange(value)}
                       className={`flex flex-col items-center gap-2 p-4 rounded-xl font-medium transition-all cursor-pointer ${
                         settings.theme === value
                           ? 'bg-blue-600 text-white shadow-md'

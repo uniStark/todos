@@ -4,7 +4,7 @@ import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Todo } from '@/lib/storage';
-import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, LogOut, Pencil, Check, X } from 'lucide-react';
+import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, LogOut, Pencil, Check, X, Github, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -474,6 +474,28 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* GitHub Footer */}
+      <motion.footer
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6 }}
+        className={`text-center ${isMobile ? 'pb-28' : 'pb-8'} pt-12`}
+      >
+        <a
+          href="https://github.com/uniStark/To-Do-List"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-slate-100/50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-700/30 backdrop-blur-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 cursor-pointer group"
+        >
+          <Github size={18} strokeWidth={2} className="group-hover:scale-110 transition-transform" />
+          <span className="text-xs font-bold uppercase tracking-widest">Open Source on GitHub</span>
+          <Heart size={14} strokeWidth={2.5} className="text-red-400 group-hover:text-red-500 group-hover:scale-125 transition-all" />
+        </a>
+        <p className="mt-4 text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+          Made with <span className="text-red-400">♥</span> by STARK Team
+        </p>
+      </motion.footer>
 
       {/* Fixed Bottom Nav Pro Max (Mobile Only) */}
       {isMobile && (

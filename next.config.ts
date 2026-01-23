@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
   // 实验性功能
   experimental: {
     // 优化包导入
-    optimizePackageImports: ['lucide-react', 'framer-motion'],
+    optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts', 'date-fns'],
   },
 };
 

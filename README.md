@@ -12,7 +12,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-![STARK Todo List Preview](https://via.placeholder.com/800x400/f8fafc/1e293b?text=STARK+Todo+List)
+![STARK Todo List Preview](https://todo.unistark.dpdns.org/)
 
 </div>
 

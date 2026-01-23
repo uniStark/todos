@@ -61,7 +61,7 @@ export default function SettingsPage() {
                 <Check className="text-white" size={16} strokeWidth={4} />
               </div>
               <span className="font-bold uppercase tracking-widest text-xs">
-                {t.language === 'zh' ? 'Settings Saved' : 'Settings Saved'}
+                {t.settingsSaved}
               </span>
             </motion.div>
           )}

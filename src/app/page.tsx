@@ -249,7 +249,7 @@ export default function Home() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader className="animate-spin text-blue-500" size={40} />
-            <p className="text-slate-400 font-medium animate-pulse uppercase tracking-widest text-xs">Syncing tasks...</p>
+            <p className="text-slate-400 font-medium animate-pulse uppercase tracking-widest text-xs">{t.syncingTasks}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -261,8 +261,12 @@ export default function Home() {
                   exit={{ opacity: 0, scale: 0.9 }}
                   className="glass-card py-20 rounded-[2.5rem] text-center border-dashed border-2 opacity-60"
                 >
-                  <div className="text-slate-400 dark:text-slate-500 text-sm font-bold uppercase tracking-widest">
-                    {filter === 'all' ? t.noTasks : `${settings.language === 'zh' ? 'No ' : ''}${filter === 'active' ? t.active : t.completed} ${settings.language === 'zh' ? 'tasks' : ' tasks'}`}
+                  <div className="text-slate-400 dark:text-slate-500 text-sm font-bold uppercase tracking-widest px-4">
+                    {filter === 'all' 
+                      ? t.noTasks 
+                      : filter === 'active' 
+                        ? t.noActiveTasks 
+                        : t.noCompletedTasks}
                   </div>
                 </motion.div>
               ) : (

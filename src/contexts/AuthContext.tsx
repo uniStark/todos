@@ -9,9 +9,11 @@ interface AuthContextType {
   logout: () => void;
   requestAuth: () => void;
   closeAuthModal: () => void;
+  getAuthHeaders: () => Record<string, string>;
 }
 
 const AUTH_STORAGE_KEY = 'stark-todo-auth';
+const AUTH_PASSWORD_KEY = 'stark-todo-pwd';
 
 // 默认值，用于 SSR
 const defaultContextValue: AuthContextType = {
@@ -21,6 +23,7 @@ const defaultContextValue: AuthContextType = {
   logout: () => {},
   requestAuth: () => {},
   closeAuthModal: () => {},
+  getAuthHeaders: () => ({}),
 };
 
 const AuthContext = createContext<AuthContextType>(defaultContextValue);
@@ -29,13 +32,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [storedPassword, setStoredPassword] = useState<string | null>(null);
 
   // 客户端初始化
   useEffect(() => {
     setIsClient(true);
     const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (savedAuth === 'true') {
+    const savedPwd = localStorage.getItem(AUTH_PASSWORD_KEY);
+    if (savedAuth === 'true' && savedPwd) {
       setIsAuthenticated(true);
+      setStoredPassword(savedPwd);
     }
   }, []);
 
@@ -52,7 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (data.success) {
         setIsAuthenticated(true);
+        setStoredPassword(password);
         localStorage.setItem(AUTH_STORAGE_KEY, 'true');
+        localStorage.setItem(AUTH_PASSWORD_KEY, password);
         setShowAuthModal(false);
         return true;
       }
@@ -66,7 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 登出
   const logout = useCallback(() => {
     setIsAuthenticated(false);
+    setStoredPassword(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(AUTH_PASSWORD_KEY);
   }, []);
 
   // 请求验证（显示弹窗）
@@ -81,6 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setShowAuthModal(false);
   }, []);
 
+  // 获取认证请求头
+  const getAuthHeaders = useCallback((): Record<string, string> => {
+    if (storedPassword) {
+      return { 'X-API-Key': storedPassword };
+    }
+    return {};
+  }, [storedPassword]);
+
   // 始终提供 Context，确保子组件可以访问
   const contextValue: AuthContextType = isClient
     ? {
@@ -90,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         requestAuth,
         closeAuthModal,
+        getAuthHeaders,
       }
     : defaultContextValue;
 

@@ -75,6 +75,20 @@ export const translations = {
     logout: '退出登录',
     authenticated: '已验证',
     notAuthenticated: '未验证',
+
+    // Groups & Priority
+    groups: '分组',
+    addGroup: '添加分组',
+    deleteGroup: '删除分组',
+    defaultGroup: '默认分组',
+    selectGroup: '选择分组',
+    priority: '优先级',
+    p0: '高优先级 (P0)',
+    p1: '中优先级 (P1)',
+    p2: '低优先级 (P2)',
+    manageGroups: '管理分组',
+    newGroupName: '新分组名称',
+    noPriority: '无优先级',
   },
   en: {
     // Common
@@ -152,6 +166,20 @@ export const translations = {
     logout: 'Logout',
     authenticated: 'Authenticated',
     notAuthenticated: 'Not authenticated',
+
+    // Groups & Priority
+    groups: 'Groups',
+    addGroup: 'Add Group',
+    deleteGroup: 'Delete Group',
+    defaultGroup: 'Default Group',
+    selectGroup: 'Select Group',
+    priority: 'Priority',
+    p0: 'High (P0)',
+    p1: 'Medium (P1)',
+    p2: 'Low (P2)',
+    manageGroups: 'Manage Groups',
+    newGroupName: 'New Group Name',
+    noPriority: 'No Priority',
   },
 };
 

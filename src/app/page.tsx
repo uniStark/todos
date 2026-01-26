@@ -3,8 +3,8 @@
 import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Todo } from '@/lib/storage';
-import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, LogOut, Pencil, Check, X, Github, Heart, Code2 } from 'lucide-react';
+import { Todo, Group, Priority, DEFAULT_GROUP_ID } from '@/lib/types';
+import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, LogOut, Pencil, Check, X, Github, Heart, Code2, FolderPlus, Flag, ChevronDown, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,18 +19,25 @@ const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
 export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
-  const { isAuthenticated, requestAuth, logout } = useAuth();
+  const { isAuthenticated, requestAuth, logout, getAuthHeaders } = useAuth();
   const t = translations[settings.language];
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(DEFAULT_GROUP_ID);
+  const [selectedPriority, setSelectedPriority] = useState<Priority>('P2');
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [isMobile, setIsMobile] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [activeGroupId, setActiveGroupId] = useState<string | 'all'>('all');
 
   useEffect(() => {
     fetchTodos();
+    fetchGroups();
     
     // Record PV/UV
     fetch('/api/stats', { method: 'POST' }).catch(err => console.error('Failed to record stats:', err));
@@ -59,6 +66,55 @@ export default function Home() {
     }
   }, []);
 
+  const fetchGroups = useCallback(async () => {
+    try {
+      const response = await fetch('/api/groups');
+      const data = await response.json();
+      setGroups(data);
+    } catch (error) {
+      console.error('Failed to fetch groups:', error);
+    }
+  }, []);
+
+  const addGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim() || !isAuthenticated) return;
+
+    try {
+      const response = await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ name: newGroupName.trim() }),
+      });
+      const newGroup = await response.json();
+      setGroups([...groups, newGroup]);
+      setNewGroupName('');
+      setIsGroupModalOpen(false);
+    } catch (error) {
+      console.error('Failed to add group:', error);
+    }
+  };
+
+  const deleteGroup = async (id: string) => {
+    if (id === DEFAULT_GROUP_ID || !isAuthenticated) return;
+
+    try {
+      await fetch(`/api/groups?id=${id}`, { 
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      setGroups(groups.filter(g => g.id !== id));
+      if (selectedGroupId === id) setSelectedGroupId(DEFAULT_GROUP_ID);
+      if (activeGroupId === id) setActiveGroupId('all');
+      fetchTodos(); // 重新加载任务，因为它们的分组可能已经改变
+    } catch (error) {
+      console.error('Failed to delete group:', error);
+    }
+  };
+
   const addTodo = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
@@ -72,8 +128,15 @@ export default function Home() {
     try {
       const response = await fetch('/api/todos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: inputValue }),
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ 
+          text: inputValue,
+          groupId: selectedGroupId,
+          priority: selectedPriority
+        }),
       });
       const newTodo = await response.json();
       setTodos([...todos, newTodo]);
@@ -81,7 +144,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to add todo:', error);
     }
-  }, [inputValue, todos, isAuthenticated, requestAuth]);
+  }, [inputValue, todos, isAuthenticated, requestAuth, selectedGroupId, selectedPriority, getAuthHeaders]);
 
   const toggleTodo = useCallback(async (id: string, completed: boolean) => {
     // 检查权限
@@ -93,7 +156,10 @@ export default function Home() {
     try {
       const response = await fetch('/api/todos', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({ id, completed: !completed }),
       });
       const updatedTodo = await response.json();
@@ -101,7 +167,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to toggle todo:', error);
     }
-  }, [todos, isAuthenticated, requestAuth]);
+  }, [todos, isAuthenticated, requestAuth, getAuthHeaders]);
 
   const deleteTodo = useCallback(async (id: string) => {
     // 检查权限
@@ -111,12 +177,15 @@ export default function Home() {
     }
 
     try {
-      await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
+      await fetch(`/api/todos?id=${id}`, { 
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
       setTodos(todos.filter((t) => t.id !== id));
     } catch (error) {
       console.error('Failed to delete todo:', error);
     }
-  }, [todos, isAuthenticated, requestAuth]);
+  }, [todos, isAuthenticated, requestAuth, getAuthHeaders]);
 
   // 开始编辑
   const startEdit = useCallback((id: string, text: string) => {
@@ -136,8 +205,17 @@ export default function Home() {
   }, []);
 
   // 保存编辑
-  const saveEdit = useCallback(async (id: string) => {
-    if (!editText.trim()) {
+  const saveEdit = useCallback(async (id: string, updates: Partial<Todo> = {}) => {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+
+    const finalUpdates = {
+      id,
+      text: updates.text || (id === editingId ? editText.trim() : todo.text),
+      ...updates
+    };
+
+    if (id === editingId && !editText.trim() && !updates.text) {
       cancelEdit();
       return;
     }
@@ -145,16 +223,27 @@ export default function Home() {
     try {
       const response = await fetch('/api/todos', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, text: editText.trim() }),
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(finalUpdates),
       });
       const updatedTodo = await response.json();
       setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
-      cancelEdit();
+      if (id === editingId) cancelEdit();
     } catch (error) {
       console.error('Failed to update todo:', error);
     }
-  }, [editText, todos, cancelEdit]);
+  }, [editText, todos, cancelEdit, editingId, getAuthHeaders]);
+
+  const updateTodoPriority = useCallback((id: string, priority: Priority) => {
+    saveEdit(id, { priority });
+  }, [saveEdit]);
+
+  const updateTodoGroup = useCallback((id: string, groupId: string) => {
+    saveEdit(id, { groupId });
+  }, [saveEdit]);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -178,12 +267,31 @@ export default function Home() {
 
   // 使用 useMemo 优化计算
   const filteredTodos = useMemo(() => {
-    return todos.filter((todo) => {
-      if (filter === 'active') return !todo.completed;
-      if (filter === 'completed') return todo.completed;
-      return true;
-    });
-  }, [todos, filter]);
+    return todos
+      .filter((todo) => {
+        const matchesFilter = 
+          filter === 'active' ? !todo.completed :
+          filter === 'completed' ? todo.completed : true;
+        
+        const matchesGroup = 
+          activeGroupId === 'all' ? true : todo.groupId === activeGroupId;
+
+        return matchesFilter && matchesGroup;
+      })
+      .sort((a, b) => {
+        // 首先按照优先级排序
+        const priorityOrder = { 'P0': 0, 'P1': 1, 'P2': 2 };
+        const aPrio = a.priority || 'P2';
+        const bPrio = b.priority || 'P2';
+        
+        if (priorityOrder[aPrio] !== priorityOrder[bPrio]) {
+          return priorityOrder[aPrio] - priorityOrder[bPrio];
+        }
+        
+        // 优先级相同时，按照创建时间降序排序
+        return b.createdAt - a.createdAt;
+      });
+  }, [todos, filter, activeGroupId]);
 
   const stats = useMemo(() => ({
     total: todos.length,
@@ -292,24 +400,100 @@ export default function Home() {
           transition={{ delay: 0.4 }}
           className="glass-card p-2 rounded-[2rem] mb-10 sm:mb-12 shadow-2xl ring-1 ring-black/5 dark:ring-white/10"
         >
-          <form onSubmit={addTodo} className="flex gap-2 p-1">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder={t.addTaskPlaceholder}
-              className="flex-1 bg-transparent border-none rounded-2xl px-5 py-4 text-base sm:text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all"
-            />
-            <button
-              type="submit"
-              disabled={!inputValue.trim()}
-              className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 sm:px-8 py-4 rounded-[1.5rem] font-bold flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer shadow-lg active:scale-95 hover:shadow-xl"
-            >
-              <Plus size={22} strokeWidth={3} />
-              <span className="hidden sm:inline text-sm uppercase tracking-wider">{t.addTask}</span>
-            </button>
+          <form onSubmit={addTodo} className="space-y-2">
+            <div className="flex gap-2 p-1">
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder={t.addTaskPlaceholder}
+                className="flex-1 bg-transparent border-none rounded-2xl px-5 py-4 text-base sm:text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all"
+              />
+              <button
+                type="submit"
+                disabled={!inputValue.trim()}
+                className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 sm:px-8 py-4 rounded-[1.5rem] font-bold flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer shadow-lg active:scale-95 hover:shadow-xl"
+              >
+                <Plus size={22} strokeWidth={3} />
+                <span className="hidden sm:inline text-sm uppercase tracking-wider">{t.addTask}</span>
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3 px-4 pb-3">
+              {/* Group Selector */}
+              <div className="relative group/select">
+                <select
+                  value={selectedGroupId}
+                  onChange={(e) => setSelectedGroupId(e.target.value)}
+                  className="appearance-none bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase tracking-widest pl-8 pr-8 py-2 rounded-xl cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none ring-1 ring-slate-200 dark:ring-slate-700"
+                >
+                  {groups.map((g, idx) => (
+                    <option key={`${g.id}-${idx}`} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+                <List className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              </div>
+
+              {/* Priority Selector */}
+              <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+                {(['P0', 'P1', 'P2'] as Priority[]).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setSelectedPriority(p)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                      selectedPriority === p
+                        ? p === 'P0' ? 'bg-red-500 text-white shadow-lg' :
+                          p === 'P1' ? 'bg-amber-500 text-white shadow-lg' :
+                          'bg-blue-500 text-white shadow-lg'
+                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
+              {/* Manage Groups Trigger */}
+              <button
+                type="button"
+                onClick={() => setIsGroupModalOpen(true)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                title={t.manageGroups}
+              >
+                <FolderPlus size={18} />
+              </button>
+            </div>
           </form>
         </motion.div>
+
+        {/* Group Tabs Pro Max */}
+        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2 no-scrollbar">
+          <button
+            onClick={() => setActiveGroupId('all')}
+            className={`whitespace-nowrap px-5 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
+              activeGroupId === 'all'
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            {t.all}
+          </button>
+          {groups.map((g, idx) => (
+            <button
+              key={`${g.id}-${idx}`}
+              onClick={() => setActiveGroupId(g.id)}
+              className={`whitespace-nowrap px-5 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
+                activeGroupId === g.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
+              {g.name}
+            </button>
+          ))}
+        </div>
 
         {/* Desktop Tabs Pro Max */}
         {!isMobile && (
@@ -366,9 +550,7 @@ export default function Home() {
                   </div>
                 </motion.div>
               ) : (
-                filteredTodos
-                  .sort((a, b) => b.createdAt - a.createdAt)
-                  .map((todo) => (
+                filteredTodos.map((todo) => (
                     <motion.div
                       key={todo.id}
                       layout
@@ -394,6 +576,25 @@ export default function Home() {
                         </motion.button>
 
                         <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {/* Priority Indicator */}
+                            {todo.priority && (
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                todo.priority === 'P0' ? 'bg-red-500 text-white shadow-sm' :
+                                todo.priority === 'P1' ? 'bg-amber-500 text-white shadow-sm' :
+                                'bg-blue-500 text-white shadow-sm'
+                              }`}>
+                                {todo.priority}
+                              </span>
+                            )}
+                            {/* Group Tag */}
+                            {todo.groupId && todo.groupId !== DEFAULT_GROUP_ID && (
+                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-[9px] font-bold uppercase tracking-widest ring-1 ring-slate-200 dark:ring-slate-700">
+                                {groups.find(g => g.id === todo.groupId)?.name || '...'}
+                              </span>
+                            )}
+                          </div>
+
                           {editingId === todo.id ? (
                             // 编辑模式
                             <div className="flex items-center gap-2">
@@ -465,6 +666,60 @@ export default function Home() {
                             >
                               <Pencil size={18} strokeWidth={2.5} />
                             </motion.button>
+                            
+                            {/* Quick Priority/Group Select for existing items */}
+                            <div className="relative group/actions">
+                              <motion.button
+                                whileHover={{ scale: 1.1, backgroundColor: 'rgba(100, 116, 139, 0.1)' }}
+                                whileTap={{ scale: 0.9 }}
+                                className="p-3 rounded-2xl text-slate-300 hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-300 transition-all duration-300 cursor-pointer"
+                              >
+                                <MoreVertical size={18} strokeWidth={2.5} />
+                              </motion.button>
+                              
+                              <div className="absolute right-0 top-full mt-2 hidden group-hover/actions:block z-50 min-w-[160px]">
+                                <div className="glass-card p-2 rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 flex flex-col gap-1">
+                                  <p className="px-3 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
+                                    {t.priority}
+                                  </p>
+                                  <div className="grid grid-cols-3 gap-1 mb-2">
+                                    {(['P0', 'P1', 'P2'] as Priority[]).map((p, idx) => (
+                                      <button
+                                        key={`${p}-${idx}`}
+                                        onClick={() => updateTodoPriority(todo.id, p)}
+                                        className={`py-1.5 rounded-lg text-[9px] font-black transition-all ${
+                                          todo.priority === p 
+                                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' 
+                                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400'
+                                        }`}
+                                      >
+                                        {p}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  <p className="px-3 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
+                                    {t.groups}
+                                  </p>
+                                  <div className="max-h-32 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+                                    {groups.map((g, idx) => (
+                                      <button
+                                        key={`${g.id}-${idx}`}
+                                        onClick={() => updateTodoGroup(todo.id, g.id)}
+                                        className={`px-3 py-2 rounded-lg text-[10px] font-bold text-left transition-all ${
+                                          todo.groupId === g.id 
+                                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400'
+                                        }`}
+                                      >
+                                        {g.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
                             <motion.button
                               whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
                               whileTap={{ scale: 0.9 }}
@@ -543,6 +798,83 @@ export default function Home() {
           </div>
         </motion.div>
       )}
+
+      {/* Group Management Modal Pro Max */}
+      <AnimatePresence>
+        {isGroupModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/40"
+            onClick={() => setIsGroupModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="glass-card w-full max-w-md p-8 rounded-[3rem] shadow-2xl relative overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">
+                    {t.manageGroups}
+                  </h3>
+                  <div className="h-1 w-8 bg-blue-500 rounded-full mt-1" />
+                </div>
+                <button 
+                  onClick={() => setIsGroupModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Add New Group */}
+              <form onSubmit={addGroup} className="flex gap-2 mb-8">
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder={t.newGroupName}
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl px-5 py-3 text-sm font-bold focus:outline-none ring-1 ring-inset ring-slate-200 dark:ring-slate-700 focus:ring-blue-500/50"
+                />
+                <button
+                  type="submit"
+                  disabled={!newGroupName.trim() || !isAuthenticated}
+                  className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg hover:shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-20 cursor-pointer"
+                >
+                  <Plus size={20} strokeWidth={3} />
+                </button>
+              </form>
+
+              {/* Groups List */}
+              <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                {groups.map((g, idx) => (
+                  <div 
+                    key={`${g.id}-${idx}`} 
+                    className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-[1.5rem] border border-slate-100 dark:border-slate-700/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{g.name}</span>
+                    </div>
+                    {g.id !== DEFAULT_GROUP_ID && (
+                      <button
+                        onClick={() => deleteGroup(g.id)}
+                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
+                      >
+                        <Trash2 size={16} strokeWidth={2.5} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

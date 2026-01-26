@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, BarChart3, Info } from 'lucide-react';
-import { Todo } from '@/lib/storage';
+import { Todo } from '@/lib/types';
 import { useSettings } from '@/contexts/SettingsContext';
 import { translations } from '@/lib/translations';
 import dynamic from 'next/dynamic';

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       return unauthorizedResponse();
     }
 
-    const { text, createdAt } = await request.json();
+    const { text, createdAt, groupId, priority } = await request.json();
     if (!text) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
     }
@@ -52,6 +52,8 @@ export async function POST(request: Request) {
       text,
       completed: false,
       createdAt: createdAt || Date.now(), // 支持自定义创建时间
+      groupId: groupId || 'default',
+      priority: priority || 'P2',
     };
 
     todos.push(newTodo);
@@ -73,7 +75,7 @@ export async function PUT(request: Request) {
       return unauthorizedResponse();
     }
 
-    const { id, completed, text, createdAt, completedAt } = await request.json();
+    const { id, completed, text, createdAt, completedAt, groupId, priority } = await request.json();
     
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -109,6 +111,14 @@ export async function PUT(request: Request) {
     } else if (completedAt !== undefined && todos[index].completed) {
       // 仅更新完成时间
       todos[index].completedAt = completedAt;
+    }
+
+    // 更新分组和优先级
+    if (groupId !== undefined) {
+      todos[index].groupId = groupId;
+    }
+    if (priority !== undefined) {
+      todos[index].priority = priority;
     }
 
     saveTodos(todos);

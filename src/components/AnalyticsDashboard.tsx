@@ -8,7 +8,7 @@ import {
 import { motion } from 'framer-motion';
 import { format, subDays, isWithinInterval, startOfDay, endOfDay, eachDayOfInterval } from 'date-fns';
 import { enUS, zhCN } from 'date-fns/locale';
-import { Todo } from '@/lib/storage';
+import { Todo } from '@/lib/types';
 import { useSettings } from '@/contexts/SettingsContext';
 import { translations } from '@/lib/translations';
 import { Calendar, TrendingUp, CheckCircle2, Clock, Filter, ChevronLeft, ChevronRight, Eye, Users } from 'lucide-react';
@@ -123,7 +123,7 @@ export default function AnalyticsDashboard({ todos, siteStats }: AnalyticsDashbo
           { label: t.successRate, value: `${stats.rate}%`, icon: TrendingUp, color: 'orange', bg: 'bg-orange-500/10', text: 'text-orange-500' },
         ].map((item, idx) => (
           <motion.div
-            key={item.label}
+            key={`${item.label}-${idx}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.1 }}

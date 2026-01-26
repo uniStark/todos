@@ -114,7 +114,7 @@ export default function AnalyticsDashboard({ todos, siteStats }: AnalyticsDashbo
       </div>
 
       {/* KPI Grid Pro Max - Improved Alignment & Consistency */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
         {[
           { label: t.pv, value: siteStats.pv, icon: Eye, color: 'indigo', bg: 'bg-indigo-500/10', text: 'text-indigo-500' },
           { label: t.uv, value: siteStats.uv, icon: Users, color: 'purple', bg: 'bg-purple-500/10', text: 'text-purple-500' },
@@ -127,17 +127,17 @@ export default function AnalyticsDashboard({ todos, siteStats }: AnalyticsDashbo
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="glass-card p-5 lg:p-6 rounded-[2.5rem] flex items-center gap-4 lg:gap-6 hover-lift"
+            className="glass-card p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-[2rem] flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 hover-lift"
           >
-            <div className={`p-4 ${item.bg} ${item.text} rounded-2xl shrink-0 transition-all duration-500`}>
-              <item.icon size={24} strokeWidth={2.5} />
+            <div className={`p-3 sm:p-4 ${item.bg} ${item.text} rounded-xl sm:rounded-2xl shrink-0 transition-all duration-500`}>
+              <item.icon size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
             </div>
-            <div className="min-w-0 flex-1 flex flex-col justify-center">
-              <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-slate-400 mb-0.5 leading-tight">
+            <div className="flex flex-col justify-center w-full">
+              <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-slate-400 mb-1 leading-tight whitespace-nowrap">
                 {item.label}
               </p>
-              <p className="text-2xl lg:text-3xl font-black tabular-nums tracking-tighter text-slate-900 dark:text-white truncate">
-                {item.value}
+              <p className="text-xl sm:text-2xl lg:text-3xl font-black tabular-nums tracking-tighter text-slate-900 dark:text-white">
+                {typeof item.value === 'number' ? item.value.toLocaleString() : item.value}
               </p>
             </div>
           </motion.div>

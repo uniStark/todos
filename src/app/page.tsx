@@ -287,7 +287,12 @@ export default function Home() {
         return matchesFilter && matchesGroup;
       })
       .sort((a, b) => {
-        // 首先按照优先级排序
+        // 1. 未完成任务排在前面
+        if (a.completed !== b.completed) {
+          return a.completed ? 1 : -1;
+        }
+        
+        // 2. 按优先级排序 (P0 > P1 > P2)
         const priorityOrder = { 'P0': 0, 'P1': 1, 'P2': 2 };
         const aPrio = a.priority || 'P2';
         const bPrio = b.priority || 'P2';
@@ -296,7 +301,7 @@ export default function Home() {
           return priorityOrder[aPrio] - priorityOrder[bPrio];
         }
         
-        // 优先级相同时，按照创建时间降序排序
+        // 3. 按创建时间降序排序
         return b.createdAt - a.createdAt;
       });
   }, [todos, filter, activeGroupId]);

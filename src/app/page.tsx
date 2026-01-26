@@ -208,6 +208,12 @@ export default function Home() {
 
   // 保存编辑
   const saveEdit = useCallback(async (id: string, updates: Partial<Todo> = {}) => {
+    // 检查权限
+    if (!isAuthenticated) {
+      requestAuth();
+      return;
+    }
+    
     const todo = todos.find(t => t.id === id);
     if (!todo) return;
 
@@ -237,7 +243,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to update todo:', error);
     }
-  }, [editText, todos, cancelEdit, editingId, getAuthHeaders]);
+  }, [editText, todos, cancelEdit, editingId, getAuthHeaders, isAuthenticated, requestAuth]);
 
   const updateTodoPriority = useCallback((id: string, priority: Priority) => {
     saveEdit(id, { priority });

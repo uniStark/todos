@@ -257,9 +257,119 @@ Tasks are stored in `todos.json` with the following structure:
     "createdAt": 1705392000000,
     "completedAt": null,
     "deleted": false,
-    "deletedAt": null
+    "deletedAt": null,
+    "groupId": "default",
+    "priority": "P2"
   }
 ]
+```
+
+## 🔌 API Reference
+
+The application provides a RESTful API for programmatic access. View the interactive API documentation at `/api-docs` in your browser.
+
+### Authentication
+
+Protected endpoints require authentication via API key in request headers:
+
+```bash
+# Option 1: X-API-Key header
+-H "X-API-Key: your_password"
+
+# Option 2: Authorization Bearer header
+-H "Authorization: Bearer your_password"
+```
+
+> Default password is `stark123`. Configure via `AUTH_PASSWORD` environment variable.
+
+### Endpoints
+
+#### Todos API (`/api/todos`)
+
+| Method | Auth | Description |
+|--------|------|-------------|
+| GET | ❌ | Get all active todos |
+| POST | ✅ | Create a new todo |
+| PUT | ✅ | Update an existing todo |
+| DELETE | ✅ | Soft delete a todo |
+
+**GET /api/todos**
+```bash
+curl https://your-domain/api/todos
+```
+
+**POST /api/todos**
+```bash
+curl -X POST https://your-domain/api/todos \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: stark123" \
+  -d '{"text": "New task", "groupId": "default", "priority": "P1"}'
+```
+
+**PUT /api/todos**
+```bash
+curl -X PUT https://your-domain/api/todos \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: stark123" \
+  -d '{"id": "uuid", "completed": true, "text": "Updated text"}'
+```
+
+**DELETE /api/todos**
+```bash
+curl -X DELETE "https://your-domain/api/todos?id=uuid" \
+  -H "X-API-Key: stark123"
+```
+
+#### Groups API (`/api/groups`)
+
+| Method | Auth | Description |
+|--------|------|-------------|
+| GET | ❌ | Get all groups |
+| POST | ✅ | Create a new group |
+| DELETE | ✅ | Delete a group |
+
+**GET /api/groups**
+```bash
+curl https://your-domain/api/groups
+```
+
+**POST /api/groups**
+```bash
+curl -X POST https://your-domain/api/groups \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: stark123" \
+  -d '{"name": "Work"}'
+```
+
+**DELETE /api/groups**
+```bash
+curl -X DELETE "https://your-domain/api/groups?id=uuid" \
+  -H "X-API-Key: stark123"
+```
+
+#### Stats API (`/api/stats`)
+
+| Method | Auth | Description |
+|--------|------|-------------|
+| GET | ❌ | Get PV/UV statistics |
+| POST | ❌ | Update visit statistics |
+
+**GET /api/stats**
+```bash
+curl https://your-domain/api/stats
+```
+
+#### Auth API (`/api/auth`)
+
+| Method | Auth | Description |
+|--------|------|-------------|
+| POST | ❌ | Verify password |
+
+**POST /api/auth**
+```bash
+curl -X POST https://your-domain/api/auth \
+  -H "Content-Type: application/json" \
+  -d '{"password": "stark123"}'
 ```
 
 ## 🤝 Contributing

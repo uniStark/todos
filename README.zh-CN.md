@@ -257,9 +257,119 @@ stark-todo-list/
     "createdAt": 1705392000000,
     "completedAt": null,
     "deleted": false,
-    "deletedAt": null
+    "deletedAt": null,
+    "groupId": "default",
+    "priority": "P2"
   }
 ]
+```
+
+## 🔌 API 接口文档
+
+应用提供 RESTful API 用于程序化访问。在浏览器中访问 `/api-docs` 可查看交互式 API 文档。
+
+### 认证方式
+
+受保护的端点需要在请求头中提供 API 密钥：
+
+```bash
+# 方式一：X-API-Key 请求头
+-H "X-API-Key: your_password"
+
+# 方式二：Authorization Bearer 请求头
+-H "Authorization: Bearer your_password"
+```
+
+> 默认密码为 `stark123`。可通过 `AUTH_PASSWORD` 环境变量配置。
+
+### 接口列表
+
+#### 任务接口 (`/api/todos`)
+
+| 方法 | 认证 | 描述 |
+|------|------|------|
+| GET | ❌ | 获取所有活跃任务 |
+| POST | ✅ | 创建新任务 |
+| PUT | ✅ | 更新现有任务 |
+| DELETE | ✅ | 软删除任务 |
+
+**GET /api/todos**
+```bash
+curl https://your-domain/api/todos
+```
+
+**POST /api/todos**
+```bash
+curl -X POST https://your-domain/api/todos \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: stark123" \
+  -d '{"text": "新任务", "groupId": "default", "priority": "P1"}'
+```
+
+**PUT /api/todos**
+```bash
+curl -X PUT https://your-domain/api/todos \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: stark123" \
+  -d '{"id": "uuid", "completed": true, "text": "更新后的文本"}'
+```
+
+**DELETE /api/todos**
+```bash
+curl -X DELETE "https://your-domain/api/todos?id=uuid" \
+  -H "X-API-Key: stark123"
+```
+
+#### 分组接口 (`/api/groups`)
+
+| 方法 | 认证 | 描述 |
+|------|------|------|
+| GET | ❌ | 获取所有分组 |
+| POST | ✅ | 创建新分组 |
+| DELETE | ✅ | 删除分组 |
+
+**GET /api/groups**
+```bash
+curl https://your-domain/api/groups
+```
+
+**POST /api/groups**
+```bash
+curl -X POST https://your-domain/api/groups \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: stark123" \
+  -d '{"name": "工作"}'
+```
+
+**DELETE /api/groups**
+```bash
+curl -X DELETE "https://your-domain/api/groups?id=uuid" \
+  -H "X-API-Key: stark123"
+```
+
+#### 统计接口 (`/api/stats`)
+
+| 方法 | 认证 | 描述 |
+|------|------|------|
+| GET | ❌ | 获取 PV/UV 统计 |
+| POST | ❌ | 更新访问统计 |
+
+**GET /api/stats**
+```bash
+curl https://your-domain/api/stats
+```
+
+#### 认证接口 (`/api/auth`)
+
+| 方法 | 认证 | 描述 |
+|------|------|------|
+| POST | ❌ | 验证密码 |
+
+**POST /api/auth**
+```bash
+curl -X POST https://your-domain/api/auth \
+  -H "Content-Type: application/json" \
+  -d '{"password": "stark123"}'
 ```
 
 ## 🤝 贡献

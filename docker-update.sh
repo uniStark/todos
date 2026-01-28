@@ -94,11 +94,11 @@ if [ "$PULL_CODE" = true ] && [ -d ".git" ]; then
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
     echo -e "   当前分支: ${CYAN}$CURRENT_BRANCH${NC}"
     
-    if git pull origin "$CURRENT_BRANCH" 2>&1; then
+    if git pull private "$CURRENT_BRANCH" 2>&1; then
         echo -e "${GREEN}   ✓ 代码已更新${NC}"
     else
         echo -e "${RED}   ✗ 代码拉取失败！${NC}"
-        echo -e "${YELLOW}   💡 提示: 运行 'git reset --hard origin/$CURRENT_BRANCH' 强制覆盖本地更改${NC}"
+        echo -e "${YELLOW}   💡 提示: 运行 'git reset --hard private/$CURRENT_BRANCH' 强制覆盖本地更改${NC}"
         exit 1
     fi
     echo ""

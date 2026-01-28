@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       return unauthorizedResponse();
     }
 
-    const { text, createdAt, groupId, priority } = await request.json();
+    const { text, createdAt, groupId, priority, dueDate, completed, completedAt } = await request.json();
     if (!text) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
     }
@@ -50,16 +50,22 @@ export async function POST(request: Request) {
     const newTodo: Todo = {
       id: crypto.randomUUID(),
       text,
-      completed: false,
+      completed: completed || false, // 支持创建已完成的任务
       createdAt: createdAt || Date.now(), // 支持自定义创建时间
       groupId: groupId || 'default',
       priority: priority || 'P2',
+      dueDate: dueDate, // 支持截止日期
     };
+
+    // 如果任务已完成，设置完成时间
+    if (completed) {
+      newTodo.completedAt = completedAt || Date.now();
+    }
 
     todos.push(newTodo);
     saveTodos(todos);
     
-    console.log(`[API POST] Created todo: ${newTodo.id} - "${text}"`);
+    console.log(`[API POST] Created todo: ${newTodo.id} - "${text}"${completed ? ' (completed)' : ''}`);
     return NextResponse.json(newTodo, { status: 201 });
   } catch (error) {
     console.error('[API POST] Error:', error);
@@ -75,7 +81,7 @@ export async function PUT(request: Request) {
       return unauthorizedResponse();
     }
 
-    const { id, completed, text, createdAt, completedAt, groupId, priority } = await request.json();
+    const { id, completed, text, createdAt, completedAt, groupId, priority, dueDate } = await request.json();
     
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -119,6 +125,10 @@ export async function PUT(request: Request) {
     }
     if (priority !== undefined) {
       todos[index].priority = priority;
+    }
+    // 更新截止日期
+    if (dueDate !== undefined) {
+      todos[index].dueDate = dueDate;
     }
 
     saveTodos(todos);

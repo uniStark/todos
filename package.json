@@ -31,6 +31,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@lobehub/icons": "^4.0.3",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.468.0",

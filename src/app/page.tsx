@@ -16,6 +16,12 @@ const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
   ssr: true,
 });
 
+// 动态导入 AI Chat 组件
+const AIChat = dynamic(() => import('@/components/AIChat'), {
+  loading: () => null,
+  ssr: false,
+});
+
 export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
@@ -253,6 +259,25 @@ export default function Home() {
     saveEdit(id, { groupId });
   }, [saveEdit]);
 
+  // AI 操作后刷新待办事项列表
+  const refreshTodosFromAI = useCallback(async () => {
+    try {
+      // 重新加载待办事项
+      const todosResponse = await fetch('/api/todos');
+      const todosData = await todosResponse.json();
+      setTodos(todosData.filter((t: Todo) => !t.deleted));
+
+      // 重新加载分组
+      const groupsResponse = await fetch('/api/groups');
+      const groupsData = await groupsResponse.json();
+      setGroups(groupsData);
+
+      console.log('[AI] Refreshed todos and groups');
+    } catch (error) {
+      console.error('Failed to refresh from AI:', error);
+    }
+  }, []);
+
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
     try {
@@ -271,6 +296,23 @@ export default function Home() {
         minute: '2-digit',
       });
     }
+  };
+
+  // 格式化截止日期（支持时间）
+  const formatDueDate = (dueDate: string): string => {
+    // 检查是否包含时间 (YYYY-MM-DDTHH:mm)
+    if (dueDate.includes('T')) {
+      const [datePart, timePart] = dueDate.split('T');
+      const [year, month, day] = datePart.split('-');
+      return settings.language === 'zh' 
+        ? `${parseInt(month)}月${parseInt(day)}日 ${timePart}`
+        : `${month}/${day} ${timePart}`;
+    }
+    // 只有日期 (YYYY-MM-DD)
+    const [year, month, day] = dueDate.split('-');
+    return settings.language === 'zh' 
+      ? `${parseInt(month)}月${parseInt(day)}日`
+      : `${month}/${day}`;
   };
 
   // 使用 useMemo 优化计算
@@ -292,7 +334,14 @@ export default function Home() {
           return a.completed ? 1 : -1;
         }
         
-        // 2. 按优先级排序 (P0 > P1 > P2)
+        // 2. 已完成任务只按时间排序（完成时间降序）
+        if (a.completed && b.completed) {
+          const aTime = a.completedAt || a.createdAt;
+          const bTime = b.completedAt || b.createdAt;
+          return bTime - aTime;
+        }
+        
+        // 3. 未完成任务按优先级排序 (P0 > P1 > P2)
         const priorityOrder = { 'P0': 0, 'P1': 1, 'P2': 2 };
         const aPrio = a.priority || 'P2';
         const bPrio = b.priority || 'P2';
@@ -301,7 +350,7 @@ export default function Home() {
           return priorityOrder[aPrio] - priorityOrder[bPrio];
         }
         
-        // 3. 按创建时间降序排序
+        // 4. 同优先级按创建时间降序排序
         return b.createdAt - a.createdAt;
       });
   }, [todos, filter, activeGroupId]);
@@ -654,6 +703,12 @@ export default function Home() {
                                   <Calendar size={12} strokeWidth={2.5} />
                                   {formatDate(todo.createdAt)}
                                 </span>
+                                {todo.dueDate && (
+                                  <span className="flex items-center gap-1.5 text-orange-500">
+                                    <Clock size={12} strokeWidth={2.5} />
+                                    {settings.language === 'zh' ? '截止' : 'Due'}: {formatDueDate(todo.dueDate)}
+                                  </span>
+                                )}
                                 {todo.completedAt && (
                                   <span className="flex items-center gap-1.5 text-emerald-500">
                                     <CheckCircle2 size={12} strokeWidth={2.5} />
@@ -949,6 +1004,9 @@ export default function Home() {
           </>
         )}
       </AnimatePresence>
+
+      {/* AI Chat 助手 */}
+      <AIChat onRefreshTodos={refreshTodosFromAI} />
     </main>
   );
 }

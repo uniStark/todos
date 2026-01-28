@@ -1,0 +1,568 @@
+{
+  "id": "da7941fd-5fe0-404c-b13a-477d942664f1",
+  "messages": [
+    {
+      "id": "35c0328b-124c-4da5-83fd-6a8154263c65",
+      "role": "user",
+      "content": "我明天要去看牙医",
+      "timestamp": 1769590088612
+    },
+    {
+      "id": "ab957724-56e9-41b8-8309-7e2a0a3647a0",
+      "role": "assistant",
+      "content": "好的，记下你的安排了。看牙医确实需要提前做好准备，祝你一切顺利！",
+      "timestamp": 1769590093661,
+      "extractedTodos": [
+        {
+          "text": "明天去看牙医",
+          "priority": "P1",
+          "added": false
+        }
+      ]
+    },
+    {
+      "id": "f77a99bd-d801-488e-96f3-ab49bb39f4f0",
+      "role": "user",
+      "content": "我明天下午3点去看牙医，帮我记录在 person 中",
+      "timestamp": 1769590805633
+    },
+    {
+      "id": "e3c87cdf-72f0-4868-acba-6a9001008eb6",
+      "role": "assistant",
+      "content": "好的，已经帮你记录好明天下午3点看牙医的安排，并归类到\"person\"分组中了。记得提前做好准备哦！",
+      "timestamp": 1769590811889,
+      "extractedTodos": [
+        {
+          "text": "看牙医",
+          "priority": "P1",
+          "dueDate": "2026-01-29T15:00",
+          "groupName": "person",
+          "added": false
+        }
+      ]
+    },
+    {
+      "id": "1291fd17-e1a0-4168-8264-061012b4aa2c",
+      "role": "user",
+      "content": "我明天不去看牙了",
+      "timestamp": 1769591427157
+    },
+    {
+      "id": "8e434f71-5e37-4837-a742-350f8a8e7c11",
+      "role": "assistant",
+      "content": "好的，已经取消了明天看牙医的安排。如果之后需要重新安排，随时告诉我！",
+      "timestamp": 1769591431624,
+      "deletionAction": {
+        "mode": "specific",
+        "keywords": [
+          "看牙"
+        ],
+        "date": "2026-01-29",
+        "matchedTodoIds": [
+          "62ead441-ecf9-4df5-a650-3e27bf3225c6"
+        ],
+        "executed": false
+      }
+    },
+    {
+      "id": "724935c8-ac82-4ad1-bdd2-7100ee8efb23",
+      "role": "user",
+      "content": "我明天要做一个非常重要的手术",
+      "timestamp": 1769591445800
+    },
+    {
+      "id": "355f7091-ab7e-4d5f-8aa6-9f050403bd3e",
+      "role": "assistant",
+      "content": "    好的，已将你明天的重要手术添加到待办事项中，并标记为最高优先级（P0）。祝你手术顺利，一切平安！",
+      "timestamp": 1769591448316
+    },
+    {
+      "id": "1e15a1e7-f0f5-4878-88ad-74197d03d2f3",
+      "role": "user",
+      "content": "我明天要做一个非常重要的手术",
+      "timestamp": 1769591463648
+    },
+    {
+      "id": "fda64da2-3f2e-4f41-a28f-f87b5dafa02b",
+      "role": "assistant",
+      "content": "好的，已经帮你记录了明天的重要手术安排，并标记为最高优先级（P0）。祝你手术顺利，早日康复！",
+      "timestamp": 1769591482275
+    },
+    {
+      "id": "111f5bc0-bf33-4f30-9c29-9255074fce92",
+      "role": "user",
+      "content": "截止到今天的任务已经全部完成",
+      "timestamp": 1769591506295
+    },
+    {
+      "id": "1b46283d-acd9-4329-98d1-9f88f660689c",
+      "role": "assistant",
+      "content": "太棒了！恭喜你完成了今天所有的任务！🎉 现在可以好好休息一下了。如果有新的安排，随时告诉我哦！",
+      "timestamp": 1769591511459,
+      "completionAction": {
+        "mode": "today",
+        "keywords": [],
+        "date": "2026-01-28",
+        "matchedTodoIds": [],
+        "executed": false
+      }
+    },
+    {
+      "id": "5fcb55db-33f1-4d51-8f18-154a02a28fef",
+      "role": "user",
+      "content": "截止到今天的任务已经全部完成",
+      "timestamp": 1769591537368
+    },
+    {
+      "id": "976513a2-599e-4f96-b3f5-6bc60cd06dc5",
+      "role": "assistant",
+      "content": "太棒了！恭喜你完成了今天所有的任务！🎉 现在可以好好放松一下了。如果有新的安排，随时告诉我哦！",
+      "timestamp": 1769591542549,
+      "completionAction": {
+        "mode": "today",
+        "keywords": [],
+        "date": "2026-01-28",
+        "matchedTodoIds": [],
+        "executed": false
+      }
+    },
+    {
+      "id": "ec6434b7-bc6f-422c-8c74-c8b3b02487e4",
+      "role": "user",
+      "content": "我明天要做一个非常重要的手术",
+      "timestamp": 1769591549623
+    },
+    {
+      "id": "561946aa-1fd6-4795-a000-448aee663850",
+      "role": "assistant",
+      "content": "好的，已经将你明天的重要手术添加到待办事项中，并标记为最高优先级（P0）。祝你手术一切顺利，早日康复！",
+      "timestamp": 1769591559321,
+      "extractedTodos": [
+        {
+          "text": "做一个非常重要的手术",
+          "priority": "P0",
+          "dueDate": "2026-01-29T09:00",
+          "groupName": "",
+          "added": false
+        }
+      ]
+    },
+    {
+      "id": "d6922d09-856a-4ea2-9b47-894214a23b36",
+      "role": "user",
+      "content": "后天去上海玩",
+      "timestamp": 1769591578130
+    },
+    {
+      "id": "5e6d80fc-6234-4678-aaa1-4d55bd2db5a2",
+      "role": "assistant",
+      "content": "好的，我已经帮你把“后天去上海玩”添加到待办事项列表了，优先级为P2（普通）。\n\n祝你旅途愉快，玩得开心！",
+      "timestamp": 1769591581561
+    },
+    {
+      "id": "28bdbcca-f138-4c1d-836f-c4fec137df53",
+      "role": "user",
+      "content": "后天去上海玩",
+      "timestamp": 1769591631462
+    },
+    {
+      "id": "2f8df980-86ea-4327-bb88-e361cc087098",
+      "role": "assistant",
+      "content": "好的，已经帮你把\"后天去上海玩\"添加到待办事项列表了！祝你旅途愉快！🎉",
+      "timestamp": 1769591637599,
+      "extractedTodos": [
+        {
+          "text": "后天去上海玩",
+          "priority": "P2",
+          "dueDate": "2026-01-30T09:00",
+          "groupName": "",
+          "added": false
+        }
+      ]
+    },
+    {
+      "id": "63b92f3d-3325-4da5-bdb0-626337e0d9a0",
+      "role": "user",
+      "content": "不去上海玩了",
+      "timestamp": 1769591647413
+    },
+    {
+      "id": "6ab2c75e-4766-439a-81d3-13055cdb1067",
+      "role": "assistant",
+      "content": "好的，我理解你不去上海玩了。让我帮你把这个事项从待办列表中删除。\n\n\n\n已经取消了\"后天去上海玩\"的计划！如果还有其他安排需要调整，随时告诉我。",
+      "timestamp": 1769591652718,
+      "deletionAction": {
+        "mode": "specific",
+        "keywords": [
+          "上海玩"
+        ],
+        "matchedTodoIds": [
+          "335541de-8f78-411f-808a-1701aebd445d"
+        ],
+        "executed": false
+      }
+    },
+    {
+      "id": "a3ec1bf8-c2b7-41c7-80eb-09797964f3fd",
+      "role": "user",
+      "content": "截止到今天的任务已经全部完成",
+      "timestamp": 1769591684480
+    },
+    {
+      "id": "5659f1eb-e67a-4091-b506-a4ab8be2e37e",
+      "role": "assistant",
+      "content": "好的，我来帮你标记今天完成的所有任务！\n\n\n\n太棒了！恭喜你今天完成了所有任务！🎉 现在可以好好放松一下了。如果有新的安排，随时告诉我哦！",
+      "timestamp": 1769591689339,
+      "completionAction": {
+        "mode": "today",
+        "keywords": [],
+        "date": "2026-01-28",
+        "matchedTodoIds": [],
+        "executed": false
+      }
+    },
+    {
+      "id": "153b4dc9-5d55-40ea-9a88-27fc18fd1708",
+      "role": "user",
+      "content": "我昨天完成了mac",
+      "timestamp": 1769591698984
+    },
+    {
+      "id": "92705c78-2ebd-4a99-a442-eb34fcf29411",
+      "role": "assistant",
+      "content": "好的，我来帮你标记昨天完成的任务！\n\n\n\n已经将包含\"mac\"关键词的任务标记为昨天（1月27日）完成了！如果还有其他需要更新的事项，请告诉我。",
+      "timestamp": 1769591704574,
+      "completionAction": {
+        "mode": "specific",
+        "keywords": [
+          "mac"
+        ],
+        "date": "2026-01-27",
+        "matchedTodoIds": [],
+        "executed": false
+      }
+    },
+    {
+      "id": "befda539-ace1-40fc-825b-cb36cae7e37d",
+      "role": "user",
+      "content": "我昨天去散步了",
+      "timestamp": 1769591994760
+    },
+    {
+      "id": "bdec6d0b-8925-4572-b880-229477c23f71",
+      "role": "assistant",
+      "content": "",
+      "timestamp": 1769592019203,
+      "extractedTodos": [
+        {
+          "text": "散步",
+          "priority": "P2",
+          "createdAt": "2026-01-27T17:19",
+          "completedAt": "2026-01-27T17:19",
+          "isCompleted": true,
+          "added": false
+        }
+      ]
+    },
+    {
+      "id": "6bf0d45a-0bb3-4400-bc04-027da1b92fb0",
+      "role": "user",
+      "content": "截止到今天的任务已经全部完成了",
+      "timestamp": 1769592504243
+    },
+    {
+      "id": "77b1e82f-0d06-4771-98ed-48211caeb9ee",
+      "role": "assistant",
+      "content": "好的，我来帮你标记今天完成的所有任务！\n\n\n\n太棒了！恭喜你今天完成了所有任务！🎉 现在可以好好放松一下了。如果有新的安排，随时告诉我哦！",
+      "timestamp": 1769592513668,
+      "completionAction": {
+        "mode": "today",
+        "date": "2026-01-28",
+        "matchedTodoIds": [],
+        "executed": false
+      }
+    },
+    {
+      "id": "e5201e0a-6b2b-41b6-95c3-bfd7a218dff5",
+      "role": "user",
+      "content": "截止到今天的任务标记为全部完成",
+      "timestamp": 1769593724951
+    },
+    {
+      "id": "058da11a-9ae7-4748-bcbf-95929677edd4",
+      "role": "assistant",
+      "content": "我注意到您再次要求将所有截止到今天的任务标记为已完成。让我检查一下当前未完成的任务列表。\n\n根据您的待办事项列表，现在有以下未完成任务：\n- mock-1-1\n- mock-2-1  \n- mock-2-2\n- mock-4-3\n- mock-5-1\n- mock-6-1\n- mock-6-4\n- mock-7-1\n- mock-7-2\n- mock-9-0\n- mock-9-1\n- mock-9-4\n- mock-10-3\n- mock-12-1\n- mock-13-1\n- mock-13-4\n- mock-15-2\n- mock-15-3\n- mock-15-4\n- mock-17-2\n- mock-19-1\n- mock-20-0\n- mock-21-0\n- mock-21-1\n- mock-22-1\n- mock-22-3\n- mock-23-1\n- mock-23-2\n- mock-23-3\n- mock-24-0\n- mock-24-3\n- mock-25-0\n- mock-26-1\n- mock-26-3\n- mock-27-0\n- mock-27-1\n- mock-28-1\n- mock-29-0\n- mock-29-1\n- mock-29-3\n- mock-30-2\n- mock-30-4\n- mock-33-1\n- mock-33-2\n- mock-33-4\n- mock-34-0\n- mock-34-1\n- mock-35-0\n- mock-38-1\n- mock-38-2\n- mock-39-1\n- mock-39-3\n- mock-39-4\n- mock-40-1\n- mock-42-1\n- mock-43-0\n- mock-44-3\n- 92247510-917b-4435-ac7f-cb969e90d839\n- 96525d6d-1cf7-46a4-bf09-3f5612809121\n\n我现在将这些任务全部标记为已完成。\n\n\n\n太棒了！恭喜您今天完成了所有任务！🎉 现在可以好好放松一下了。如果有新的安排，随时告诉我哦！",
+      "timestamp": 1769593784876,
+      "executionResult": {
+        "added": [],
+        "completed": [
+          {
+            "id": "mock-1-1",
+            "text": "Mock Task 1-1"
+          },
+          {
+            "id": "mock-2-1",
+            "text": "Mock Task 2-1"
+          },
+          {
+            "id": "mock-2-2",
+            "text": "Mock Task 2-2"
+          },
+          {
+            "id": "mock-4-3",
+            "text": "Mock Task 4-3"
+          },
+          {
+            "id": "mock-5-1",
+            "text": "Mock Task 5-1"
+          },
+          {
+            "id": "mock-6-1",
+            "text": "Mock Task 6-1"
+          },
+          {
+            "id": "mock-6-4",
+            "text": "Mock Task 6-4"
+          },
+          {
+            "id": "mock-7-1",
+            "text": "Mock Task 7-1"
+          },
+          {
+            "id": "mock-7-2",
+            "text": "Mock Task 7-2"
+          },
+          {
+            "id": "mock-9-0",
+            "text": "Mock Task 9-0"
+          },
+          {
+            "id": "mock-9-1",
+            "text": "Mock Task 9-1"
+          },
+          {
+            "id": "mock-9-4",
+            "text": "Mock Task 9-4"
+          },
+          {
+            "id": "mock-10-3",
+            "text": "Mock Task 10-3"
+          },
+          {
+            "id": "mock-12-1",
+            "text": "Mock Task 12-1"
+          },
+          {
+            "id": "mock-13-1",
+            "text": "Mock Task 13-1"
+          },
+          {
+            "id": "mock-13-4",
+            "text": "Mock Task 13-4"
+          },
+          {
+            "id": "mock-15-2",
+            "text": "Mock Task 15-2"
+          },
+          {
+            "id": "mock-15-3",
+            "text": "Mock Task 15-3"
+          },
+          {
+            "id": "mock-15-4",
+            "text": "Mock Task 15-4"
+          },
+          {
+            "id": "mock-17-2",
+            "text": "Mock Task 17-2"
+          },
+          {
+            "id": "mock-19-1",
+            "text": "Mock Task 19-1"
+          },
+          {
+            "id": "mock-20-0",
+            "text": "Mock Task 20-0"
+          },
+          {
+            "id": "mock-21-0",
+            "text": "Mock Task 21-0"
+          },
+          {
+            "id": "mock-21-1",
+            "text": "Mock Task 21-1"
+          },
+          {
+            "id": "mock-22-1",
+            "text": "Mock Task 22-1"
+          },
+          {
+            "id": "mock-22-3",
+            "text": "Mock Task 22-3"
+          },
+          {
+            "id": "mock-23-1",
+            "text": "Mock Task 23-1"
+          },
+          {
+            "id": "mock-23-2",
+            "text": "Mock Task 23-2"
+          },
+          {
+            "id": "mock-23-3",
+            "text": "Mock Task 23-3"
+          },
+          {
+            "id": "mock-24-0",
+            "text": "Mock Task 24-0"
+          },
+          {
+            "id": "mock-24-3",
+            "text": "Mock Task 24-3"
+          },
+          {
+            "id": "mock-25-0",
+            "text": "Mock Task 25-0"
+          },
+          {
+            "id": "mock-26-1",
+            "text": "Mock Task 26-1"
+          },
+          {
+            "id": "mock-26-3",
+            "text": "Mock Task 26-3"
+          },
+          {
+            "id": "mock-27-0",
+            "text": "Mock Task 27-0"
+          },
+          {
+            "id": "mock-27-1",
+            "text": "Mock Task 27-1"
+          },
+          {
+            "id": "mock-28-1",
+            "text": "Mock Task 28-1"
+          },
+          {
+            "id": "mock-29-0",
+            "text": "Mock Task 29-0"
+          },
+          {
+            "id": "mock-29-1",
+            "text": "Mock Task 29-1"
+          },
+          {
+            "id": "mock-29-3",
+            "text": "Mock Task 29-3"
+          },
+          {
+            "id": "mock-30-2",
+            "text": "Mock Task 30-2"
+          },
+          {
+            "id": "mock-30-4",
+            "text": "Mock Task 30-4"
+          },
+          {
+            "id": "mock-33-1",
+            "text": "Mock Task 33-1"
+          },
+          {
+            "id": "mock-33-2",
+            "text": "Mock Task 33-2"
+          },
+          {
+            "id": "mock-33-4",
+            "text": "Mock Task 33-4"
+          },
+          {
+            "id": "mock-34-0",
+            "text": "Mock Task 34-0"
+          },
+          {
+            "id": "mock-34-1",
+            "text": "Mock Task 34-1"
+          },
+          {
+            "id": "mock-35-0",
+            "text": "Mock Task 35-0"
+          },
+          {
+            "id": "mock-38-1",
+            "text": "Mock Task 38-1"
+          },
+          {
+            "id": "mock-38-2",
+            "text": "Mock Task 38-2"
+          },
+          {
+            "id": "mock-39-1",
+            "text": "Mock Task 39-1"
+          },
+          {
+            "id": "mock-39-3",
+            "text": "Mock Task 39-3"
+          },
+          {
+            "id": "mock-39-4",
+            "text": "Mock Task 39-4"
+          },
+          {
+            "id": "mock-40-1",
+            "text": "Mock Task 40-1"
+          },
+          {
+            "id": "mock-42-1",
+            "text": "Mock Task 42-1"
+          },
+          {
+            "id": "mock-43-0",
+            "text": "Mock Task 43-0"
+          },
+          {
+            "id": "mock-44-3",
+            "text": "Mock Task 44-3"
+          },
+          {
+            "id": "92247510-917b-4435-ac7f-cb969e90d839",
+            "text": "发发发"
+          },
+          {
+            "id": "96525d6d-1cf7-46a4-bf09-3f5612809121",
+            "text": "做一个非常重要的手术"
+          }
+        ],
+        "deleted": [],
+        "updated": [],
+        "errors": []
+      }
+    },
+    {
+      "id": "697facff-8acc-42f6-bc70-e9a6b1072065",
+      "role": "user",
+      "content": "我明天要去买车！！！我很开心",
+      "timestamp": 1769593820673
+    },
+    {
+      "id": "327fa14d-bd5b-4558-946d-a9cbb5d4bd57",
+      "role": "assistant",
+      "content": "太棒了！恭喜您要买车了！🎉 这可是个值得庆祝的大事！\n\n我已经帮您把「明天要去买车」添加到待办事项里了，标记为重要的P1优先级。祝您明天选车顺利，提到心仪的爱车！",
+      "timestamp": 1769593829736,
+      "executionResult": {
+        "added": [
+          {
+            "id": "3725d245-7d42-499e-9fc8-4bdb68d2d70e",
+            "text": "明天要去买车"
+          }
+        ],
+        "completed": [],
+        "deleted": [],
+        "updated": [],
+        "errors": []
+      }
+    }
+  ],
+  "createdAt": 1769590080328,
+  "updatedAt": 1769593829736
+}

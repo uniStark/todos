@@ -89,6 +89,20 @@ export const translations = {
     manageGroups: '管理分组',
     newGroupName: '新分组名称',
     noPriority: '无优先级',
+
+    // AI Chat
+    aiAssistant: 'AI 助手',
+    aiDescription: '智能识别待办事项',
+    aiPlaceholder: '告诉我你想做什么...',
+    clearChat: '清除对话',
+    addTodo: '添加任务',
+    todoAdded: '已添加',
+    todosDetected: '识别到的待办事项',
+    selectModel: '选择模型',
+    deepseek: 'DeepSeek V3.1',
+    glm4: 'GLM-4',
+    sending: '发送中...',
+    emptyChat: '开始和AI对话，它会自动识别你的待办事项',
   },
   en: {
     // Common
@@ -180,6 +194,20 @@ export const translations = {
     manageGroups: 'Manage Groups',
     newGroupName: 'New Group Name',
     noPriority: 'No Priority',
+
+    // AI Chat
+    aiAssistant: 'AI Assistant',
+    aiDescription: 'Smart todo detection',
+    aiPlaceholder: 'Tell me what you want to do...',
+    clearChat: 'Clear chat',
+    addTodo: 'Add task',
+    todoAdded: 'Added',
+    todosDetected: 'Detected todos',
+    selectModel: 'Select model',
+    deepseek: 'DeepSeek V3.1',
+    glm4: 'GLM-4',
+    sending: 'Sending...',
+    emptyChat: 'Start chatting with AI, it will detect your todos automatically',
   },
 };
 

@@ -22,10 +22,13 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 60,
   },
   
+  // 转译 @lobehub/icons 包以支持 SSR
+  transpilePackages: ['@lobehub/icons'],
+  
   // 实验性功能
   experimental: {
     // 优化包导入
-    optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts', 'date-fns'],
+    optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts', 'date-fns', '@lobehub/icons'],
   },
 };
 

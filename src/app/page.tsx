@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { translations } from '@/lib/translations';
+import { isMobileApp } from '@/lib/platform';
 
 // 动态导入 Logo 组件（非关键路径）
 const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
@@ -43,6 +44,12 @@ export default function Home() {
   const [timeFilter, setTimeFilter] = useState<'all' | 'past' | 'today' | 'future'>('all');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
+  const [isNativeApp, setIsNativeApp] = useState(false);
+
+  // 检测是否是原生 App
+  useEffect(() => {
+    setIsNativeApp(isMobileApp());
+  }, []);
 
   useEffect(() => {
     fetchTodos();
@@ -128,8 +135,8 @@ export default function Home() {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
-    // 检查权限
-    if (!isAuthenticated) {
+    // 检查权限（移动端跳过）
+    if (!isNativeApp && !isAuthenticated) {
       requestAuth();
       return;
     }
@@ -162,11 +169,11 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to add todo:', error);
     }
-  }, [inputValue, todos, isAuthenticated, requestAuth, selectedGroupId, selectedPriority, getAuthHeaders, settings.enableGroups, settings.enablePriority]);
+  }, [inputValue, todos, isAuthenticated, requestAuth, selectedGroupId, selectedPriority, getAuthHeaders, settings.enableGroups, settings.enablePriority, isNativeApp]);
 
   const toggleTodo = useCallback(async (id: string, completed: boolean) => {
-    // 检查权限
-    if (!isAuthenticated) {
+    // 检查权限（移动端跳过）
+    if (!isNativeApp && !isAuthenticated) {
       requestAuth();
       return;
     }
@@ -185,11 +192,11 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to toggle todo:', error);
     }
-  }, [todos, isAuthenticated, requestAuth, getAuthHeaders]);
+  }, [todos, isAuthenticated, requestAuth, getAuthHeaders, isNativeApp]);
 
   const deleteTodo = useCallback(async (id: string) => {
-    // 检查权限
-    if (!isAuthenticated) {
+    // 检查权限（移动端跳过）
+    if (!isNativeApp && !isAuthenticated) {
       requestAuth();
       return;
     }
@@ -203,18 +210,18 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to delete todo:', error);
     }
-  }, [todos, isAuthenticated, requestAuth, getAuthHeaders]);
+  }, [todos, isAuthenticated, requestAuth, getAuthHeaders, isNativeApp]);
 
   // 开始编辑
   const startEdit = useCallback((id: string, text: string) => {
-    // 检查权限
-    if (!isAuthenticated) {
+    // 检查权限（移动端跳过）
+    if (!isNativeApp && !isAuthenticated) {
       requestAuth();
       return;
     }
     setEditingId(id);
     setEditText(text);
-  }, [isAuthenticated, requestAuth]);
+  }, [isAuthenticated, requestAuth, isNativeApp]);
 
   // 取消编辑
   const cancelEdit = useCallback(() => {
@@ -224,8 +231,8 @@ export default function Home() {
 
   // 保存编辑
   const saveEdit = useCallback(async (id: string, updates: Partial<Todo> = {}) => {
-    // 检查权限
-    if (!isAuthenticated) {
+    // 检查权限（移动端跳过）
+    if (!isNativeApp && !isAuthenticated) {
       requestAuth();
       return;
     }
@@ -259,7 +266,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to update todo:', error);
     }
-  }, [editText, todos, cancelEdit, editingId, getAuthHeaders, isAuthenticated, requestAuth]);
+  }, [editText, todos, cancelEdit, editingId, getAuthHeaders, isAuthenticated, requestAuth, isNativeApp]);
 
   const updateTodoPriority = useCallback((id: string, priority: Priority) => {
     saveEdit(id, { priority });
@@ -448,18 +455,21 @@ export default function Home() {
         >
           <BarChart3 size={22} strokeWidth={2.5} />
         </motion.button>
-        <motion.button
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5 }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => router.push('/api-docs')}
-          className="p-3 bg-purple-600 dark:bg-purple-500 text-white backdrop-blur-xl rounded-2xl shadow-xl hover:shadow-2xl hover:bg-purple-700 dark:hover:bg-purple-400 transition-all duration-300 cursor-pointer"
-          title="API Docs"
-        >
-          <Code2 size={22} strokeWidth={2.5} />
-        </motion.button>
+        {/* API Docs - 仅在 Web 端显示 */}
+        {!isNativeApp && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5 }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => router.push('/api-docs')}
+            className="p-3 bg-purple-600 dark:bg-purple-500 text-white backdrop-blur-xl rounded-2xl shadow-xl hover:shadow-2xl hover:bg-purple-700 dark:hover:bg-purple-400 transition-all duration-300 cursor-pointer"
+            title="API Docs"
+          >
+            <Code2 size={22} strokeWidth={2.5} />
+          </motion.button>
+        )}
       </div>
 
       {/* Hero Section with Logo */}
@@ -872,34 +882,43 @@ export default function Home() {
         </p>
       </motion.footer>
 
-      {/* Fixed Bottom Nav Pro Max (Mobile Only) */}
+      {/* Fixed Bottom Nav Pro Max (Mobile Only) - 时间筛选 */}
       {isMobile && (
         <motion.div
           initial={{ y: 100 }}
           animate={{ y: 0 }}
-          className="fixed bottom-6 left-4 right-4 z-50 p-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl ring-1 ring-black/5"
+          className="fixed bottom-6 left-4 right-4 z-50 p-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl ring-1 ring-black/5 safe-bottom"
         >
           <div className="flex justify-between items-center px-2">
-            {(['all', 'active', 'completed'] as const).map((f) => (
+            {([
+              { value: 'past' as const, label: settings.language === 'zh' ? '过去' : 'Past', icon: Clock, color: 'red' },
+              { value: 'today' as const, label: settings.language === 'zh' ? '今天' : 'Today', icon: Calendar, color: 'amber' },
+              { value: 'future' as const, label: settings.language === 'zh' ? '未来' : 'Future', icon: Flag, color: 'emerald' },
+            ]).map((item) => (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`relative flex-1 flex flex-col items-center gap-1 py-3 px-6 rounded-2xl transition-all duration-300 cursor-pointer ${
-                  filter === f ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600'
+                key={item.value}
+                onClick={() => setTimeFilter(timeFilter === item.value ? 'all' : item.value)}
+                className={`relative flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-2xl transition-all duration-300 cursor-pointer ${
+                  timeFilter === item.value 
+                    ? item.color === 'red' ? 'text-red-500' :
+                      item.color === 'amber' ? 'text-amber-500' : 'text-emerald-500'
+                    : 'text-slate-400 dark:text-slate-600'
                 }`}
               >
-                {filter === f && (
+                {timeFilter === item.value && (
                   <motion.div
-                    layoutId="mobile-filter"
-                    className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 rounded-2xl -z-10"
+                    layoutId="mobile-time-filter"
+                    className={`absolute inset-0 rounded-2xl -z-10 ${
+                      item.color === 'red' ? 'bg-red-50 dark:bg-red-900/20' :
+                      item.color === 'amber' ? 'bg-amber-50 dark:bg-amber-900/20' :
+                      'bg-emerald-50 dark:bg-emerald-900/20'
+                    }`}
                     transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                   />
                 )}
-                {f === 'all' && <List size={20} strokeWidth={3} />}
-                {f === 'active' && <Circle size={20} strokeWidth={3} />}
-                {f === 'completed' && <CheckCheck size={20} strokeWidth={3} />}
+                <item.icon size={20} strokeWidth={2.5} />
                 <span className="text-[10px] font-black uppercase tracking-tighter">
-                  {t[f as keyof typeof t] || f}
+                  {item.label}
                 </span>
               </button>
             ))}

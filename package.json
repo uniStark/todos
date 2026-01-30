@@ -35,7 +35,7 @@
     "cap:sync": "cap sync",
     "cap:open:ios": "cap open ios",
     "ios": "pnpm build:mobile && pnpm cap:sync && pnpm cap:open:ios",
-    "ios:dev": "cap run ios --livereload --external",
+    "ios:dev": "cap run ios --live-reload --external",
     "ios:build": "pnpm build:mobile && pnpm cap:sync"
   },
   "dependencies": {

@@ -19,3 +19,8 @@ export const getPlatform = (): 'ios' | 'web' | 'mac-catalyst' => {
   if (isCapacitor() && isIOS()) return 'ios';
   return 'web';
 };
+
+// 是否是移动端 App（需要禁用某些功能）
+export const isMobileApp = (): boolean => {
+  return isCapacitor();
+};

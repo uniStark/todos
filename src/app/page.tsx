@@ -40,6 +40,7 @@ export default function Home() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [activeGroupId, setActiveGroupId] = useState<string | 'all'>('all');
+  const [timeFilter, setTimeFilter] = useState<'all' | 'past' | 'today' | 'future'>('all');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
 
@@ -134,17 +135,26 @@ export default function Home() {
     }
 
     try {
+      // 根据设置构建请求体
+      const requestBody: Record<string, unknown> = { 
+        text: inputValue,
+      };
+      
+      if (settings.enableGroups) {
+        requestBody.groupId = selectedGroupId;
+      }
+      
+      if (settings.enablePriority) {
+        requestBody.priority = selectedPriority;
+      }
+
       const response = await fetch('/api/todos', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           ...getAuthHeaders()
         },
-        body: JSON.stringify({ 
-          text: inputValue,
-          groupId: selectedGroupId,
-          priority: selectedPriority
-        }),
+        body: JSON.stringify(requestBody),
       });
       const newTodo = await response.json();
       setTodos([...todos, newTodo]);
@@ -152,7 +162,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to add todo:', error);
     }
-  }, [inputValue, todos, isAuthenticated, requestAuth, selectedGroupId, selectedPriority, getAuthHeaders]);
+  }, [inputValue, todos, isAuthenticated, requestAuth, selectedGroupId, selectedPriority, getAuthHeaders, settings.enableGroups, settings.enablePriority]);
 
   const toggleTodo = useCallback(async (id: string, completed: boolean) => {
     // 检查权限
@@ -319,14 +329,44 @@ export default function Home() {
   const filteredTodos = useMemo(() => {
     return todos
       .filter((todo) => {
+        // 状态过滤（全部/进行中/已完成）
         const matchesFilter = 
           filter === 'active' ? !todo.completed :
           filter === 'completed' ? todo.completed : true;
         
+        // 时间过滤（过去/今天/未来）
+        let matchesTime = true;
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        if (timeFilter === 'past') {
+          // 过去的任务（今天之前）
+          if (todo.dueDate) {
+            const dueDateStr = todo.dueDate.split('T')[0];
+            matchesTime = dueDateStr < todayStr;
+          } else {
+            matchesTime = false;
+          }
+        } else if (timeFilter === 'today') {
+          // 今天的任务
+          matchesTime = todo.dueDate?.startsWith(todayStr) || false;
+        } else if (timeFilter === 'future') {
+          // 未来的任务（明天之后）
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const tomorrowStr = tomorrow.toISOString().split('T')[0];
+          if (todo.dueDate) {
+            const dueDateStr = todo.dueDate.split('T')[0];
+            matchesTime = dueDateStr >= tomorrowStr;
+          } else {
+            matchesTime = false;
+          }
+        }
+        
+        // 用户分组过滤
         const matchesGroup = 
           activeGroupId === 'all' ? true : todo.groupId === activeGroupId;
 
-        return matchesFilter && matchesGroup;
+        return matchesFilter && matchesTime && matchesGroup;
       })
       .sort((a, b) => {
         // 1. 未完成任务排在前面
@@ -353,7 +393,7 @@ export default function Home() {
         // 4. 同优先级按创建时间降序排序
         return b.createdAt - a.createdAt;
       });
-  }, [todos, filter, activeGroupId]);
+  }, [todos, filter, timeFilter, activeGroupId]);
 
   const stats = useMemo(() => ({
     total: todos.length,
@@ -431,27 +471,38 @@ export default function Home() {
 
       {/* Main Content */}
       <div className={`max-w-3xl mx-auto px-4 sm:px-6 ${isMobile ? 'pb-32' : 'pb-24'}`}>
-        {/* Stats Cards Pro Max */}
+        {/* Stats Cards Pro Max - 可点击筛选 */}
         <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-8 sm:mb-12">
           {[
-            { label: t.all, value: stats.total, color: 'blue', delay: 0.1 },
-            { label: t.active, value: stats.active, color: 'orange', delay: 0.2 },
-            { label: t.completed, value: stats.completed, color: 'emerald', delay: 0.3 },
+            { label: t.all, value: stats.total, filterValue: 'all' as const, color: 'slate', delay: 0.1 },
+            { label: t.active, value: stats.active, filterValue: 'active' as const, color: 'amber', delay: 0.2 },
+            { label: t.completed, value: stats.completed, filterValue: 'completed' as const, color: 'emerald', delay: 0.3 },
           ].map((stat) => (
-            <motion.div
+            <motion.button
               key={stat.label}
+              onClick={() => setFilter(stat.filterValue)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: stat.delay }}
-              className="glass-card p-4 sm:p-6 rounded-3xl hover-lift ring-1 ring-inset ring-white/50 dark:ring-white/5"
+              className={`p-4 sm:p-6 rounded-3xl hover-lift ring-1 ring-inset transition-all cursor-pointer text-left ${
+                filter === stat.filterValue
+                  ? stat.color === 'slate'
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 ring-transparent shadow-xl'
+                    : stat.color === 'amber'
+                    ? 'bg-amber-500 text-white ring-transparent shadow-xl shadow-amber-500/30'
+                    : 'bg-emerald-500 text-white ring-transparent shadow-xl shadow-emerald-500/30'
+                  : 'glass-card ring-white/50 dark:ring-white/5'
+              }`}
             >
-              <div className="text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-2 opacity-60">
+              <div className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-2 ${
+                filter === stat.filterValue ? 'opacity-80' : 'opacity-60'
+              }`}>
                 {stat.label}
               </div>
               <div className="text-2xl sm:text-4xl font-black tabular-nums tracking-tighter">
                 {stat.value}
               </div>
-            </motion.div>
+            </motion.button>
           ))}
         </div>
 
@@ -482,110 +533,126 @@ export default function Home() {
             </div>
             
             <div className="flex flex-wrap items-center gap-3 px-4 pb-3">
-              {/* Group Selector */}
-              <div className="relative group/select">
-                <select
-                  value={selectedGroupId}
-                  onChange={(e) => setSelectedGroupId(e.target.value)}
-                  className="appearance-none bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase tracking-widest pl-8 pr-8 py-2 rounded-xl cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none ring-1 ring-slate-200 dark:ring-slate-700"
-                >
-                  {groups.map((g, idx) => (
-                    <option key={`${g.id}-${idx}`} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-                <List className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              </div>
-
-              {/* Priority Selector */}
-              <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
-                {(['P0', 'P1', 'P2'] as Priority[]).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setSelectedPriority(p)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
-                      selectedPriority === p
-                        ? p === 'P0' ? 'bg-red-500 text-white shadow-lg' :
-                          p === 'P1' ? 'bg-amber-500 text-white shadow-lg' :
-                          'bg-blue-500 text-white shadow-lg'
-                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                    }`}
+              {/* Group Selector - 仅在启用分组功能时显示 */}
+              {settings.enableGroups && (
+                <div className="relative group/select">
+                  <select
+                    value={selectedGroupId}
+                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                    className="appearance-none bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase tracking-widest pl-8 pr-8 py-2 rounded-xl cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none ring-1 ring-slate-200 dark:ring-slate-700"
                   >
-                    {p}
-                  </button>
-                ))}
-              </div>
+                    {groups.map((g, idx) => (
+                      <option key={`${g.id}-${idx}`} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                  <List className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                </div>
+              )}
 
-              {/* Manage Groups Trigger */}
-              <button
-                type="button"
-                onClick={() => setIsGroupModalOpen(true)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                title={t.manageGroups}
-              >
-                <FolderPlus size={18} />
-              </button>
+              {/* Priority Selector - 仅在启用优先级功能时显示 */}
+              {settings.enablePriority && (
+                <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+                  {(['P0', 'P1', 'P2'] as Priority[]).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setSelectedPriority(p)}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                        selectedPriority === p
+                          ? p === 'P0' ? 'bg-red-500 text-white shadow-lg' :
+                            p === 'P1' ? 'bg-amber-500 text-white shadow-lg' :
+                            'bg-blue-500 text-white shadow-lg'
+                          : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Manage Groups Trigger - 仅在启用分组功能时显示 */}
+              {settings.enableGroups && (
+                <button
+                  type="button"
+                  onClick={() => setIsGroupModalOpen(true)}
+                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  title={t.manageGroups}
+                >
+                  <FolderPlus size={18} />
+                </button>
+              )}
             </div>
           </form>
         </motion.div>
 
-        {/* Group Tabs Pro Max */}
-        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2 no-scrollbar">
-          <button
-            onClick={() => setActiveGroupId('all')}
-            className={`whitespace-nowrap px-5 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
-              activeGroupId === 'all'
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
-            {t.all}
-          </button>
-          {groups.map((g, idx) => (
+        {/* User Group Tabs - 仅显示用户自定义分组 */}
+        {settings.enableGroups && groups.length > 0 && (
+          <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2 no-scrollbar">
             <button
-              key={`${g.id}-${idx}`}
-              onClick={() => setActiveGroupId(g.id)}
-              className={`whitespace-nowrap px-5 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
-                activeGroupId === g.id
-                  ? 'bg-blue-600 text-white'
+              onClick={() => setActiveGroupId('all')}
+              className={`whitespace-nowrap px-5 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all cursor-pointer ${
+                activeGroupId === 'all'
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
                   : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
-              {g.name}
+              {t.all}
             </button>
-          ))}
-        </div>
-
-        {/* Desktop Tabs Pro Max */}
-        {!isMobile && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex gap-2 mb-8 bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-2xl w-fit mx-auto backdrop-blur-sm border border-slate-200/50 dark:border-slate-800/50 shadow-inner"
-          >
-            {(['all', 'active', 'completed'] as const).map((f) => (
+            {groups.map((g, idx) => (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`relative px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 cursor-pointer ${
-                  filter === f 
-                    ? 'text-slate-900 dark:text-white' 
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                key={`${g.id}-${idx}`}
+                onClick={() => setActiveGroupId(g.id)}
+                className={`whitespace-nowrap px-5 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all cursor-pointer ${
+                  activeGroupId === g.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
               >
-                {filter === f && (
-                  <motion.div
-                    layoutId="desktop-filter"
-                    className="absolute inset-0 bg-white dark:bg-slate-800 rounded-xl shadow-md ring-1 ring-black/5"
-                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                  />
-                )}
-                <span className="relative z-10 capitalize">{t[f as keyof typeof t] || f}</span>
+                {g.name}
               </button>
             ))}
-          </motion.div>
+          </div>
         )}
+
+        {/* Time Filter Tabs - 过去/今天/未来 */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex gap-2 mb-8 bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-2xl w-fit mx-auto backdrop-blur-sm border border-slate-200/50 dark:border-slate-800/50 shadow-inner"
+        >
+          {([
+            { value: 'all' as const, label: settings.language === 'zh' ? '全部' : 'All', color: 'slate' },
+            { value: 'past' as const, label: settings.language === 'zh' ? '过去' : 'Past', color: 'red' },
+            { value: 'today' as const, label: settings.language === 'zh' ? '今天' : 'Today', color: 'amber' },
+            { value: 'future' as const, label: settings.language === 'zh' ? '未来' : 'Future', color: 'emerald' },
+          ]).map((item) => (
+            <button
+              key={item.value}
+              onClick={() => setTimeFilter(item.value)}
+              className={`relative px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 cursor-pointer ${
+                timeFilter === item.value 
+                  ? 'text-white' 
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              {timeFilter === item.value && (
+                <motion.div
+                  layoutId="time-filter"
+                  className={`absolute inset-0 rounded-xl shadow-md ${
+                    item.color === 'slate' ? 'bg-slate-800 dark:bg-slate-700' :
+                    item.color === 'red' ? 'bg-red-500' :
+                    item.color === 'amber' ? 'bg-amber-500' :
+                    'bg-emerald-500'
+                  }`}
+                  transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              <span className="relative z-10">{item.label}</span>
+            </button>
+          ))}
+        </motion.div>
 
         {/* Tasks List Pro Max */}
         {isLoading ? (
@@ -639,8 +706,8 @@ export default function Home() {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            {/* Priority Indicator */}
-                            {todo.priority && (
+                            {/* Priority Indicator - 仅在启用优先级功能时显示 */}
+                            {settings.enablePriority && todo.priority && (
                               <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
                                 todo.priority === 'P0' ? 'bg-red-500 text-white shadow-sm' :
                                 todo.priority === 'P1' ? 'bg-amber-500 text-white shadow-sm' :
@@ -649,8 +716,8 @@ export default function Home() {
                                 {todo.priority}
                               </span>
                             )}
-                            {/* Group Tag */}
-                            {todo.groupId && todo.groupId !== DEFAULT_GROUP_ID && (
+                            {/* Group Tag - 仅在启用分组功能时显示 */}
+                            {settings.enableGroups && todo.groupId && todo.groupId !== DEFAULT_GROUP_ID && (
                               <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-[9px] font-bold uppercase tracking-widest ring-1 ring-slate-200 dark:ring-slate-700">
                                 {groups.find(g => g.id === todo.groupId)?.name || '...'}
                               </span>
@@ -948,55 +1015,72 @@ export default function Home() {
                 if (!selectedTodo) return null;
                 return (
                   <div className="glass-card p-3 rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 flex flex-col gap-2 backdrop-blur-xl bg-white/90 dark:bg-slate-900/90">
-                    <p className="px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-200 dark:border-slate-700 pb-2">
-                      {t.priority}
-                    </p>
-                    <div className="grid grid-cols-3 gap-1.5 mb-1">
-                      {(['P0', 'P1', 'P2'] as Priority[]).map((p, idx) => (
-                        <button
-                          key={`${p}-${idx}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateTodoPriority(selectedTodo.id, p);
-                            setOpenMenuId(null);
-                            setMenuPosition(null);
-                          }}
-                          className={`py-2 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
-                            selectedTodo.priority === p 
-                              ? p === 'P0' ? 'bg-red-500 text-white shadow-lg' :
-                                p === 'P1' ? 'bg-amber-500 text-white shadow-lg' :
-                                'bg-blue-500 text-white shadow-lg'
-                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Priority Section - 仅在启用时显示 */}
+                    {settings.enablePriority && (
+                      <>
+                        <p className="px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-200 dark:border-slate-700 pb-2">
+                          {t.priority}
+                        </p>
+                        <div className="grid grid-cols-3 gap-1.5 mb-1">
+                          {(['P0', 'P1', 'P2'] as Priority[]).map((p, idx) => (
+                            <button
+                              key={`${p}-${idx}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateTodoPriority(selectedTodo.id, p);
+                                setOpenMenuId(null);
+                                setMenuPosition(null);
+                              }}
+                              className={`py-2 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                                selectedTodo.priority === p 
+                                  ? p === 'P0' ? 'bg-red-500 text-white shadow-lg' :
+                                    p === 'P1' ? 'bg-amber-500 text-white shadow-lg' :
+                                    'bg-blue-500 text-white shadow-lg'
+                                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
 
-                    <p className="px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-200 dark:border-slate-700 pb-2">
-                      {t.groups}
-                    </p>
-                    <div className="max-h-40 overflow-y-auto custom-scrollbar flex flex-col gap-1">
-                      {groups.map((g, idx) => (
-                        <button
-                          key={`${g.id}-${idx}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateTodoGroup(selectedTodo.id, g.id);
-                            setOpenMenuId(null);
-                            setMenuPosition(null);
-                          }}
-                          className={`px-3 py-2.5 rounded-xl text-[11px] font-bold text-left transition-all cursor-pointer ${
-                            selectedTodo.groupId === g.id 
-                              ? 'bg-blue-500 text-white shadow-lg' 
-                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500'
-                          }`}
-                        >
-                          {g.name}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Groups Section - 仅在启用时显示 */}
+                    {settings.enableGroups && (
+                      <>
+                        <p className="px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-200 dark:border-slate-700 pb-2">
+                          {t.groups}
+                        </p>
+                        <div className="max-h-40 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+                          {groups.map((g, idx) => (
+                            <button
+                              key={`${g.id}-${idx}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateTodoGroup(selectedTodo.id, g.id);
+                                setOpenMenuId(null);
+                                setMenuPosition(null);
+                              }}
+                              className={`px-3 py-2.5 rounded-xl text-[11px] font-bold text-left transition-all cursor-pointer ${
+                                selectedTodo.groupId === g.id 
+                                  ? 'bg-blue-500 text-white shadow-lg' 
+                                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500'
+                              }`}
+                            >
+                              {g.name}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {/* 如果两个功能都关闭，显示提示 */}
+                    {!settings.enablePriority && !settings.enableGroups && (
+                      <p className="px-3 py-2 text-[11px] text-slate-400">
+                        {settings.language === 'zh' ? '请在设置中启用优先级或分组功能' : 'Enable priority or groups in settings'}
+                      </p>
+                    )}
                   </div>
                 );
               })()}

@@ -118,125 +118,140 @@ export const clearChatSession = (): ChatSession => {
   return newSession;
 };
 
-// 格式化待办事项列表（包含ID，供AI使用）
-export const formatTodosForAI = (todos: Todo[], groups: Group[]): string => {
-  if (todos.length === 0) {
+// AI 功能设置
+export interface AIFeatureSettings {
+  enablePriority: boolean;
+  enableGroups: boolean;
+}
+
+// 格式化待办事项列表（只给未完成且未删除的任务）
+export const formatTodosForAI = (
+  todos: Todo[], 
+  groups: Group[],
+  settings: AIFeatureSettings
+): string => {
+  // 只筛选未完成且未删除的任务
+  const activeTodos = todos.filter(t => !t.deleted && !t.completed);
+  
+  if (activeTodos.length === 0) {
     return '暂无待办事项';
   }
 
   const groupMap = new Map(groups.map(g => [g.id, g.name]));
   
-  return todos.map(t => {
+  return activeTodos.map(t => {
     const parts = [
       `- ID: "${t.id}"`,
       `  内容: "${t.text}"`,
-      `  优先级: ${t.priority || 'P2'}`,
-      `  状态: ${t.completed ? '已完成' : '未完成'}`,
     ];
+    
+    // 如果启用了优先级功能
+    if (settings.enablePriority) {
+      parts.push(`  优先级: ${t.priority || 'P2'}`);
+    }
     
     if (t.dueDate) {
       parts.push(`  截止时间: ${t.dueDate}`);
     }
     
-    if (t.groupId && t.groupId !== 'default') {
+    // 如果启用了分组功能
+    if (settings.enableGroups && t.groupId && t.groupId !== 'default') {
       const groupName = groupMap.get(t.groupId) || t.groupId;
       parts.push(`  分组: ${groupName}`);
-    }
-    
-    if (t.completed && t.completedAt) {
-      parts.push(`  完成时间: ${new Date(t.completedAt).toISOString()}`);
     }
     
     return parts.join('\n');
   }).join('\n\n');
 };
 
-// 生成系统提示词 - AI 拥有完全控制权
-export const getSystemPrompt = (currentDateTime: string, todosText: string, groupsText: string): string => `
-你是一个智能待办事项助手，拥有对用户待办事项的完全管理权限。
+// 生成系统提示词 - 纯 JSON 输出格式
+export const getSystemPrompt = (
+  currentDateTime: string, 
+  todosText: string, 
+  groupsText: string,
+  settings: AIFeatureSettings
+): string => {
+  // 根据设置构建操作说明
+  const addFields: string[] = [
+    '      "text": "任务内容"',
+  ];
+  
+  if (settings.enablePriority) {
+    addFields.push('      "priority": "P0/P1/P2"  // 可选，P0紧急/P1重要/P2普通(默认)');
+  }
+  
+  addFields.push('      "dueDate": "YYYY-MM-DDTHH:mm"  // 可选，截止时间');
+  
+  if (settings.enableGroups) {
+    addFields.push('      "groupName": "分组名称"  // 可选，不存在会自动创建');
+  }
+  
+  addFields.push('      "isCompleted": false  // 可选，true表示记录过去已完成的事项');
 
+  const updateFields: string[] = [
+    '      "id": "任务ID"',
+    '      "text": "新内容"  // 可选',
+  ];
+  
+  if (settings.enablePriority) {
+    updateFields.push('      "priority": "P1"  // 可选');
+  }
+  
+  updateFields.push('      "dueDate": "2026-01-30T10:00"  // 可选');
+  
+  if (settings.enableGroups) {
+    updateFields.push('      "groupName": "新分组"  // 可选');
+  }
 
-【重要】当前日期时间：${currentDateTime}
+  return `你是一个智能待办事项助手。请用自然语言回复用户，如果需要操作待办事项，在回复末尾输出 JSON。
 
-【现有分组列表】
-${groupsText || '暂无自定义分组'}
+【当前时间】${currentDateTime}
 
-【完整待办事项列表】
+${settings.enableGroups ? `【分组列表】\n${groupsText || '暂无分组'}\n` : ''}
+【待办事项列表】（仅显示未完成的任务）
 ${todosText}
 
-===== 你的能力 =====
-你可以直接操作用户的待办事项：
-1. **添加** - 创建新的待办事项
-2. **完成** - 将待办事项标记为已完成
-3. **删除** - 删除/取消待办事项
-4. **更新** - 修改待办事项的内容、优先级、截止时间等
+===== 输出格式 =====
+当需要操作待办事项时，在回复末尾添加 JSON：
 
-===== 操作格式 =====
-当需要执行操作时，在回复末尾添加以下格式的 JSON 块：
-
-<<<ACTIONS>>>
+\`\`\`json
 {
-  "add": [
-    {
-      "text": "任务内容",
-      "priority": "P0/P1/P2",
-      "dueDate": "YYYY-MM-DDTHH:mm",
-      "groupName": "分组名称",
-      "isCompleted": false
-    }
-  ],
-  "complete": ["任务ID1", "任务ID2"],
-  "delete": ["任务ID1", "任务ID2"],
-  "update": [
-    {
-      "id": "任务ID",
-      "text": "新内容",
-      "priority": "P1",
-      "dueDate": "2026-01-30T10:00"
-    }
-  ]
+  "actions": {
+    "add": [
+      {
+${addFields.join(',\n')}
+      }
+    ],
+    "complete": ["任务ID1", "任务ID2"],
+    "delete": ["任务ID1", "任务ID2"],
+    "update": [
+      {
+${updateFields.join(',\n')}
+      }
+    ]
+  }
 }
-<<<END_ACTIONS>>>
+\`\`\`
 
 ===== 操作说明 =====
+- **add**: 添加新任务，text 必填，其他可选
+- **complete**: 将任务标记为已完成，填写任务 ID 数组
+- **delete**: 删除/取消任务，填写任务 ID 数组
+- **update**: 修改任务，id 必填，其他可选
 
-**添加任务 (add)**
-- text: 必填，任务内容
-- priority: 可选，P0(紧急) / P1(重要) / P2(普通，默认)
-- dueDate: 可选，截止时间，格式 YYYY-MM-DDTHH:mm
-- groupName: 可选，分组名称（不存在会自动创建）
-- isCompleted: 可选，设为 true 表示记录过去已完成的事项
-- createdAt/completedAt: 当 isCompleted=true 时使用，记录历史时间
-
-**完成任务 (complete)**
-- 直接填写要完成的任务 ID 数组
-- 从上方待办事项列表中获取准确的 ID
-- 示例：用户说"手术做完了"，找到包含"手术"的任务 ID
-
-**删除任务 (delete)**
-- 直接填写要删除的任务 ID 数组
-- 示例：用户说"不去上海了"，找到包含"上海"的任务 ID
-
-**更新任务 (update)**
-- id: 必填，要更新的任务 ID
-- 其他字段可选，只填需要修改的
-
-===== 日期时间解析 =====
+===== 日期解析 =====
 基于当前时间 ${currentDateTime}：
 - "今天" → 当前日期
 - "明天" → +1天
 - "后天" → +2天
-- "下周X" → 计算到下一个星期X
 - "下午3点" → 15:00
 - "晚上8点" → 20:00
 
 ===== 重要规则 =====
-1. **只使用存在的 ID** - 完成/删除/更新操作必须使用上方列表中的真实 ID
-2. **理解用户意图** - 用户说"看牙的事情完成了"，应找到包含"看牙"或"牙医"的任务
-3. **支持批量操作** - 用户说"今天的任务都完成了"，找出所有今天截止的任务 ID
-4. **支持模糊匹配** - 用户说"把那个手术取消"，找到包含"手术"的任务
-5. **可以组合操作** - 一次回复可以同时添加、完成、删除多个任务
-6. **无操作时不输出** - 如果用户只是闲聊，不需要输出 ACTIONS 块
-7. **回复要友好** - 先用自然语言回复用户，再附加操作块
-
-`;
+1. 只使用待办事项列表中存在的 ID
+2. 理解用户意图，模糊匹配任务名称
+3. 支持批量操作（如"今天任务都完成了"）
+4. 无操作时不输出 JSON
+5. 先用自然语言回复，再附加 JSON
+6. 如果用户描述过去完成的事情（如"我昨天散步了"），创建已完成的任务记录（isCompleted: true, createdAt, completedAt）`;
+};

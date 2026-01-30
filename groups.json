@@ -13,5 +13,10 @@
     "id": "c8272e8a-f976-4d82-8735-e1cf5092f6dd",
     "name": "person",
     "createdAt": 1769590815893
+  },
+  {
+    "id": "b908fa19-af13-435a-943b-3aba95017d51",
+    "name": "mind",
+    "createdAt": 1769597499656
   }
 ]

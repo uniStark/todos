@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Globe, Type, Clock, Sun, Moon, Monitor, Check, ShieldCheck, ShieldOff } from 'lucide-react';
+import { ArrowLeft, Globe, Type, Clock, Sun, Moon, Monitor, Check, ShieldCheck, ShieldOff, Tag, FolderOpen, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { translations, Language } from '@/lib/translations';
@@ -54,6 +54,16 @@ export default function SettingsPage() {
 
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
     updateSettings({ theme });
+    showSaveNotification();
+  };
+
+  const handlePriorityToggle = () => {
+    updateSettings({ enablePriority: !settings.enablePriority });
+    showSaveNotification();
+  };
+
+  const handleGroupsToggle = () => {
+    updateSettings({ enableGroups: !settings.enableGroups });
     showSaveNotification();
   };
 
@@ -186,6 +196,68 @@ export default function SettingsPage() {
                     </option>
                   ))}
                 </select>
+              )
+            },
+            {
+              id: 'priority',
+              icon: Tag,
+              title: settings.language === 'zh' ? '优先级功能' : 'Priority Feature',
+              desc: settings.language === 'zh' ? '启用或关闭任务优先级' : 'Enable or disable task priority',
+              color: 'rose',
+              content: (
+                <button
+                  onClick={handlePriorityToggle}
+                  className={`w-full flex items-center justify-between p-5 rounded-2xl transition-all cursor-pointer ring-1 ring-inset ${
+                    settings.enablePriority
+                      ? 'bg-rose-500/10 dark:bg-rose-500/20 ring-rose-300 dark:ring-rose-700'
+                      : 'bg-slate-100 dark:bg-slate-800/50 ring-slate-200 dark:ring-slate-700'
+                  }`}
+                >
+                  <span className={`text-sm font-bold ${
+                    settings.enablePriority ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'
+                  }`}>
+                    {settings.enablePriority 
+                      ? (settings.language === 'zh' ? '已启用 P0/P1/P2' : 'Enabled P0/P1/P2')
+                      : (settings.language === 'zh' ? '已关闭' : 'Disabled')
+                    }
+                  </span>
+                  {settings.enablePriority ? (
+                    <ToggleRight size={32} className="text-rose-500" />
+                  ) : (
+                    <ToggleLeft size={32} className="text-slate-400" />
+                  )}
+                </button>
+              )
+            },
+            {
+              id: 'groups',
+              icon: FolderOpen,
+              title: settings.language === 'zh' ? '分组功能' : 'Groups Feature',
+              desc: settings.language === 'zh' ? '启用或关闭任务分组' : 'Enable or disable task groups',
+              color: 'cyan',
+              content: (
+                <button
+                  onClick={handleGroupsToggle}
+                  className={`w-full flex items-center justify-between p-5 rounded-2xl transition-all cursor-pointer ring-1 ring-inset ${
+                    settings.enableGroups
+                      ? 'bg-cyan-500/10 dark:bg-cyan-500/20 ring-cyan-300 dark:ring-cyan-700'
+                      : 'bg-slate-100 dark:bg-slate-800/50 ring-slate-200 dark:ring-slate-700'
+                  }`}
+                >
+                  <span className={`text-sm font-bold ${
+                    settings.enableGroups ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'
+                  }`}>
+                    {settings.enableGroups 
+                      ? (settings.language === 'zh' ? '已启用分组管理' : 'Groups Enabled')
+                      : (settings.language === 'zh' ? '已关闭' : 'Disabled')
+                    }
+                  </span>
+                  {settings.enableGroups ? (
+                    <ToggleRight size={32} className="text-cyan-500" />
+                  ) : (
+                    <ToggleLeft size={32} className="text-slate-400" />
+                  )}
+                </button>
               )
             },
             {

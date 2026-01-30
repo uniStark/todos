@@ -7,6 +7,11 @@ export interface Settings {
   logoText: string;
   timezone: string;
   theme: 'light' | 'dark' | 'system';
+  // AI 相关设置
+  aiModel: 'deepseek_v3.1' | 'glm4';
+  // 功能开关
+  enablePriority: boolean;
+  enableGroups: boolean;
 }
 
 interface SettingsContextType {
@@ -19,6 +24,11 @@ const defaultSettings: Settings = {
   logoText: 'STARK',
   timezone: 'Asia/Shanghai',
   theme: 'dark',
+  // AI 相关设置
+  aiModel: 'deepseek_v3.1',
+  // 功能开关
+  enablePriority: true,
+  enableGroups: true,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);

@@ -7,6 +7,7 @@ import {
   getModelName,
   getSystemPrompt,
   formatTodosForAI,
+  AIFeatureSettings,
 } from '@/lib/chatStorage';
 import { getTodos, saveTodos, getGroups, saveGroups } from '@/lib/storage';
 import { ChatMessage, AIActions, AIExecutionResult, AIModelType, Todo, Group } from '@/lib/types';
@@ -45,7 +46,7 @@ export async function GET() {
 // POST - 发送消息给AI
 export async function POST(request: Request) {
   try {
-    const { message, model } = await request.json();
+    const { message, model, settings: featureSettings } = await request.json();
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -53,6 +54,12 @@ export async function POST(request: Request) {
 
     const config = getAIConfig();
     const selectedModel: AIModelType = model || config.defaultModel;
+    
+    // 功能设置（从客户端传递或使用默认值）
+    const aiSettings: AIFeatureSettings = {
+      enablePriority: featureSettings?.enablePriority ?? true,
+      enableGroups: featureSettings?.enableGroups ?? true,
+    };
 
     // 保存用户消息
     const userMessage: ChatMessage = {
@@ -73,19 +80,19 @@ export async function POST(request: Request) {
         content: m.content,
       }));
 
-    // 获取完整的待办事项列表（包含 ID）
+    // 获取完整的待办事项列表（未删除的）
     const allTodos = getTodos().filter(t => !t.deleted);
     const groups = getGroups();
     
-    // 格式化待办事项和分组供 AI 使用
-    const todosText = formatTodosForAI(allTodos, groups);
+    // 格式化待办事项和分组供 AI 使用（只给未完成的任务）
+    const todosText = formatTodosForAI(allTodos, groups, aiSettings);
     const groupsText = groups.length > 0 
       ? groups.map(g => `- ${g.name} (ID: ${g.id})`).join('\n')
       : '暂无自定义分组';
 
     // 获取当前日期时间用于系统提示词
     const currentDateTime = getCurrentDateTimeString();
-    const systemPrompt = getSystemPrompt(currentDateTime, todosText, groupsText);
+    const systemPrompt = getSystemPrompt(currentDateTime, todosText, groupsText, aiSettings);
 
     // 构建请求
     const requestBody = {
@@ -128,7 +135,12 @@ export async function POST(request: Request) {
       const aiContent = data.choices?.[0]?.message?.content || '抱歉，我没有收到有效的回复。';
 
       // 解析并执行 AI 操作
-      const { cleanContent, executionResult } = await parseAndExecuteActions(aiContent, allTodos, groups);
+      const { cleanContent, executionResult } = await parseAndExecuteActions(
+        aiContent, 
+        allTodos, 
+        groups,
+        aiSettings
+      );
 
       // 保存AI回复
       const assistantMessage: ChatMessage = {
@@ -178,11 +190,12 @@ export async function DELETE() {
   }
 }
 
-// 解析并执行 AI 操作
+// 解析并执行 AI 操作（支持多种 JSON 格式）
 async function parseAndExecuteActions(
   content: string, 
   currentTodos: Todo[], 
-  currentGroups: Group[]
+  currentGroups: Group[],
+  settings: AIFeatureSettings
 ): Promise<{
   cleanContent: string;
   executionResult: AIExecutionResult;
@@ -196,30 +209,59 @@ async function parseAndExecuteActions(
     errors: [],
   };
 
-  // 解析 ACTIONS 块
+  // 尝试多种 JSON 解析模式
+  let actions: AIActions | null = null;
+  
+  // 模式1: ```json ... ``` 代码块
+  const jsonCodeBlockPattern = /```json\s*([\s\S]*?)\s*```/;
+  const jsonMatch = content.match(jsonCodeBlockPattern);
+  
+  // 模式2: <<<ACTIONS>>> ... <<<END_ACTIONS>>> (兼容旧格式)
   const actionsPattern = /<<<ACTIONS>>>([\s\S]*?)<<<END_ACTIONS>>>/;
   const actionsMatch = content.match(actionsPattern);
   
-  if (!actionsMatch) {
-    return { cleanContent, executionResult };
+  // 模式3: 直接的 JSON 对象 { "actions": ... }
+  const directJsonPattern = /\{[\s\S]*"actions"[\s\S]*\}/;
+  const directMatch = content.match(directJsonPattern);
+
+  if (jsonMatch) {
+    cleanContent = cleanContent.replace(jsonCodeBlockPattern, '').trim();
+    try {
+      const parsed = JSON.parse(jsonMatch[1].trim());
+      actions = parsed.actions || parsed;
+    } catch (e) {
+      console.error('[AI API] Failed to parse JSON code block:', e);
+    }
+  } else if (actionsMatch) {
+    cleanContent = cleanContent.replace(actionsPattern, '').trim();
+    try {
+      actions = JSON.parse(actionsMatch[1].trim());
+    } catch (e) {
+      console.error('[AI API] Failed to parse ACTIONS block:', e);
+    }
+  } else if (directMatch) {
+    // 只有在 JSON 在内容末尾时才移除
+    const jsonStartIndex = content.lastIndexOf('{');
+    if (jsonStartIndex > content.length / 2) {
+      cleanContent = content.substring(0, jsonStartIndex).trim();
+      try {
+        const parsed = JSON.parse(directMatch[0]);
+        actions = parsed.actions || parsed;
+      } catch (e) {
+        console.error('[AI API] Failed to parse direct JSON:', e);
+      }
+    }
   }
 
-  // 清理内容，移除 ACTIONS 块
-  cleanContent = cleanContent.replace(actionsPattern, '').trim();
-
-  let actions: AIActions;
-  try {
-    actions = JSON.parse(actionsMatch[1].trim());
-  } catch (parseError) {
-    console.error('[AI API] Failed to parse ACTIONS:', parseError);
-    executionResult.errors.push('操作解析失败');
+  if (!actions) {
     return { cleanContent, executionResult };
   }
 
   // 获取最新的数据
   let todos = getTodos();
   let groups = getGroups();
-  const todoMap = new Map(todos.map(t => [t.id, t]));
+  // 创建映射时只考虑未删除的任务
+  const todoMap = new Map(todos.filter(t => !t.deleted).map(t => [t.id, t]));
 
   console.log('[AI API] Executing actions:', JSON.stringify(actions, null, 2));
 
@@ -227,9 +269,9 @@ async function parseAndExecuteActions(
   if (actions.add && Array.isArray(actions.add)) {
     for (const addAction of actions.add) {
       try {
-        // 处理分组
+        // 处理分组（如果启用）
         let groupId = 'default';
-        if (addAction.groupName) {
+        if (settings.enableGroups && addAction.groupName) {
           const existingGroup = groups.find(g => 
             g.name.toLowerCase() === addAction.groupName!.toLowerCase()
           );
@@ -257,7 +299,7 @@ async function parseAndExecuteActions(
             ? new Date(addAction.createdAt).getTime() 
             : Date.now(),
           groupId,
-          priority: addAction.priority || 'P2',
+          priority: settings.enablePriority ? (addAction.priority || 'P2') : 'P2',
           dueDate: addAction.dueDate,
         };
 
@@ -324,11 +366,13 @@ async function parseAndExecuteActions(
         const index = todos.findIndex(t => t.id === updateAction.id);
         if (index !== -1) {
           if (updateAction.text) todos[index].text = updateAction.text;
-          if (updateAction.priority) todos[index].priority = updateAction.priority;
+          if (settings.enablePriority && updateAction.priority) {
+            todos[index].priority = updateAction.priority;
+          }
           if (updateAction.dueDate !== undefined) todos[index].dueDate = updateAction.dueDate;
           
-          // 处理分组更新
-          if (updateAction.groupName) {
+          // 处理分组更新（如果启用）
+          if (settings.enableGroups && updateAction.groupName) {
             const existingGroup = groups.find(g => 
               g.name.toLowerCase() === updateAction.groupName!.toLowerCase()
             );

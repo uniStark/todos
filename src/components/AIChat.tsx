@@ -34,18 +34,32 @@ interface AIChatProps {
 }
 
 export default function AIChat({ onRefreshTodos }: AIChatProps) {
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { isAuthenticated } = useAuth();
   
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<AIModelType>('deepseek_v3.1');
+  const [selectedModel, setSelectedModel] = useState<AIModelType>(settings.aiModel || 'deepseek_v3.1');
   const [showModelSelector, setShowModelSelector] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // 同步 settings 中的 aiModel
+  useEffect(() => {
+    if (settings.aiModel && settings.aiModel !== selectedModel) {
+      setSelectedModel(settings.aiModel);
+    }
+  }, [settings.aiModel]);
+
+  // 切换模型时保存到 settings
+  const handleModelChange = (model: AIModelType) => {
+    setSelectedModel(model);
+    updateSettings({ aiModel: model });
+    setShowModelSelector(false);
+  };
 
   // 多语言翻译
   const chatTranslations = {
@@ -137,7 +151,14 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage, model: selectedModel }),
+        body: JSON.stringify({ 
+          message: userMessage, 
+          model: selectedModel,
+          settings: {
+            enablePriority: settings.enablePriority,
+            enableGroups: settings.enableGroups,
+          }
+        }),
       });
 
       const data = await response.json();
@@ -352,10 +373,7 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
                           {(['deepseek_v3.1', 'glm4'] as AIModelType[]).map((model) => (
                             <button
                               key={model}
-                              onClick={() => {
-                                setSelectedModel(model);
-                                setShowModelSelector(false);
-                              }}
+                              onClick={() => handleModelChange(model)}
                               className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm rounded-lg transition-colors cursor-pointer ${
                                 selectedModel === model
                                   ? 'bg-violet-500 text-white'

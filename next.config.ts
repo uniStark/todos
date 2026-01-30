@@ -1,8 +1,13 @@
 import type { NextConfig } from "next";
 
+// 检测是否是移动端构建
+const isMobileBuild = process.env.NEXT_OUTPUT === 'export';
+
 const nextConfig: NextConfig = {
-  // 输出优化：standalone 模式可大幅减少 Docker 镜像大小
-  output: 'standalone',
+  // 输出模式：
+  // - 'standalone': Docker/服务器部署（默认）
+  // - 'export': 静态导出，用于 Capacitor 移动端
+  output: isMobileBuild ? 'export' : 'standalone',
   
   // 编译优化
   compiler: {
@@ -20,6 +25,8 @@ const nextConfig: NextConfig = {
   images: {
     formats: ['image/webp'],
     minimumCacheTTL: 60,
+    // 静态导出需要禁用图片优化
+    unoptimized: isMobileBuild,
   },
   
   // 转译 @lobehub/icons 包以支持 SSR
@@ -29,6 +36,11 @@ const nextConfig: NextConfig = {
   experimental: {
     // 优化包导入
     optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts', 'date-fns', '@lobehub/icons'],
+  },
+  
+  // 移动端构建时的环境变量
+  env: {
+    IS_MOBILE_BUILD: isMobileBuild ? 'true' : 'false',
   },
 };
 

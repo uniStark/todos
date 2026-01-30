@@ -83,3 +83,84 @@ body {
   }
 }
 
+/* ==================== iOS / Capacitor 适配 ==================== */
+
+/* iOS 安全区域适配 */
+@supports (padding: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  /* 固定在底部的元素需要额外的安全区域 */
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  
+  /* 固定在顶部的元素 */
+  .safe-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+}
+
+/* iOS 键盘弹出时的处理 */
+body.keyboard-open {
+  /* 当键盘打开时，减少底部固定元素的偏移 */
+  .fixed.bottom-6 {
+    bottom: 0.5rem;
+  }
+}
+
+/* iOS 触摸高亮禁用 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS 选择禁用（可选，用于特定区域） */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* iOS 滚动弹性效果 */
+.ios-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* 隐藏滚动条（iOS 风格） */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* iOS 输入框样式重置 */
+input, textarea, select {
+  -webkit-appearance: none;
+  border-radius: 0;
+}
+
+/* iPad 分栏布局支持 */
+@media (min-width: 768px) and (hover: none) {
+  .ipad-columns {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 2rem;
+  }
+}
+
+/* Mac Catalyst 优化 */
+@media (min-width: 1024px) and (hover: hover) {
+  /* Mac 上恢复悬停效果 */
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+}
+

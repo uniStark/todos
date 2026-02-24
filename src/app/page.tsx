@@ -10,6 +10,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { translations } from '@/lib/translations';
 import { isMobileApp } from '@/lib/platform';
+import { getMobileTodos, saveMobileTodos, getMobileGroups, saveMobileGroups } from '@/lib/mobileStorage';
 
 // 动态导入 Logo 组件（非关键路径）
 const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
@@ -17,8 +18,14 @@ const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
   ssr: true,
 });
 
-// 动态导入 AI Chat 组件
+// 动态导入 AI Chat 组件 (Web 端)
 const AIChat = dynamic(() => import('@/components/AIChat'), {
+  loading: () => null,
+  ssr: false,
+});
+
+// 动态导入语音按钮组件 (移动端)
+const VoiceButton = dynamic(() => import('@/components/VoiceButton'), {
   loading: () => null,
   ssr: false,
 });
@@ -45,8 +52,16 @@ export default function Home() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   const [isNativeApp, setIsNativeApp] = useState(false);
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
 
-  // 检测是否是原生 App
+  // 触感反馈助手
+  const hapticFeedback = useCallback((type: 'light' | 'medium' | 'heavy' = 'light') => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      if (type === 'light') navigator.vibrate(10);
+      else if (type === 'medium') navigator.vibrate(20);
+      else if (type === 'heavy') navigator.vibrate([10, 5, 10]);
+    }
+  }, []);
   useEffect(() => {
     setIsNativeApp(isMobileApp());
   }, []);
@@ -55,8 +70,10 @@ export default function Home() {
     fetchTodos();
     fetchGroups();
     
-    // Record PV/UV
-    fetch('/api/stats', { method: 'POST' }).catch(err => console.error('Failed to record stats:', err));
+    // Record PV/UV (only for web)
+    if (!isMobileApp()) {
+      fetch('/api/stats', { method: 'POST' }).catch(err => console.error('Failed to record stats:', err));
+    }
     
     // Detect mobile device
     const checkMobile = () => {
@@ -72,9 +89,16 @@ export default function Home() {
   const fetchTodos = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/todos');
-      const data = await response.json();
-      setTodos(data);
+      if (isMobileApp()) {
+        // 移动端使用本地存储
+        const data = await getMobileTodos();
+        setTodos(data.filter(t => !t.deleted));
+      } else {
+        // Web 端使用 API
+        const response = await fetch('/api/todos');
+        const data = await response.json();
+        setTodos(data);
+      }
     } catch (error) {
       console.error('Failed to fetch todos:', error);
     } finally {
@@ -84,9 +108,16 @@ export default function Home() {
 
   const fetchGroups = useCallback(async () => {
     try {
-      const response = await fetch('/api/groups');
-      const data = await response.json();
-      setGroups(data);
+      if (isMobileApp()) {
+        // 移动端使用本地存储
+        const data = await getMobileGroups();
+        setGroups(data);
+      } else {
+        // Web 端使用 API
+        const response = await fetch('/api/groups');
+        const data = await response.json();
+        setGroups(data);
+      }
     } catch (error) {
       console.error('Failed to fetch groups:', error);
     }
@@ -109,6 +140,7 @@ export default function Home() {
       setGroups([...groups, newGroup]);
       setNewGroupName('');
       setIsGroupModalOpen(false);
+      hapticFeedback('medium');
     } catch (error) {
       console.error('Failed to add group:', error);
     }
@@ -125,6 +157,7 @@ export default function Home() {
       setGroups(groups.filter(g => g.id !== id));
       if (selectedGroupId === id) setSelectedGroupId(DEFAULT_GROUP_ID);
       if (activeGroupId === id) setActiveGroupId('all');
+      hapticFeedback('heavy');
       fetchTodos(); // 重新加载任务，因为它们的分组可能已经改变
     } catch (error) {
       console.error('Failed to delete group:', error);
@@ -142,30 +175,48 @@ export default function Home() {
     }
 
     try {
-      // 根据设置构建请求体
-      const requestBody: Record<string, unknown> = { 
-        text: inputValue,
-      };
-      
-      if (settings.enableGroups) {
-        requestBody.groupId = selectedGroupId;
-      }
-      
-      if (settings.enablePriority) {
-        requestBody.priority = selectedPriority;
-      }
+      if (isNativeApp) {
+        // 移动端使用本地存储
+        const currentTodos = await getMobileTodos();
+        const newTodo: Todo = {
+          id: crypto.randomUUID(),
+          text: inputValue.trim(),
+          completed: false,
+          createdAt: Date.now(),
+          groupId: settings.enableGroups ? selectedGroupId : 'default',
+          priority: settings.enablePriority ? selectedPriority : 'P2',
+        };
+        currentTodos.push(newTodo);
+        await saveMobileTodos(currentTodos);
+        setTodos([...todos.filter(t => !t.deleted), newTodo]);
+      } else {
+        // Web 端使用 API
+        const requestBody: Record<string, unknown> = { 
+          text: inputValue,
+        };
+        
+        if (settings.enableGroups) {
+          requestBody.groupId = selectedGroupId;
+        }
+        
+        if (settings.enablePriority) {
+          requestBody.priority = selectedPriority;
+        }
 
-      const response = await fetch('/api/todos', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(requestBody),
-      });
-      const newTodo = await response.json();
-      setTodos([...todos, newTodo]);
+        const response = await fetch('/api/todos', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          },
+          body: JSON.stringify(requestBody),
+        });
+        const newTodo = await response.json();
+        setTodos([...todos, newTodo]);
+      }
       setInputValue('');
+      setIsAddSheetOpen(false);
+      hapticFeedback('medium');
     } catch (error) {
       console.error('Failed to add todo:', error);
     }
@@ -179,20 +230,38 @@ export default function Home() {
     }
 
     try {
-      const response = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ id, completed: !completed }),
-      });
-      const updatedTodo = await response.json();
-      setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
+      if (isNativeApp) {
+        // 移动端使用本地存储
+        const currentTodos = await getMobileTodos();
+        const index = currentTodos.findIndex(t => t.id === id);
+        if (index !== -1) {
+          currentTodos[index].completed = !completed;
+          if (!completed) {
+            currentTodos[index].completedAt = Date.now();
+          } else {
+            delete currentTodos[index].completedAt;
+          }
+          await saveMobileTodos(currentTodos);
+          setTodos(currentTodos.filter(t => !t.deleted));
+        }
+      } else {
+        // Web 端使用 API
+        const response = await fetch('/api/todos', {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          },
+          body: JSON.stringify({ id, completed: !completed }),
+        });
+        const updatedTodo = await response.json();
+        setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
+      }
+      hapticFeedback('light');
     } catch (error) {
       console.error('Failed to toggle todo:', error);
     }
-  }, [todos, isAuthenticated, requestAuth, getAuthHeaders, isNativeApp]);
+  }, [todos, isAuthenticated, requestAuth, getAuthHeaders, isNativeApp, hapticFeedback]);
 
   const deleteTodo = useCallback(async (id: string) => {
     // 检查权限（移动端跳过）
@@ -202,15 +271,29 @@ export default function Home() {
     }
 
     try {
-      await fetch(`/api/todos?id=${id}`, { 
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      setTodos(todos.filter((t) => t.id !== id));
+      if (isNativeApp) {
+        // 移动端使用本地存储（软删除）
+        const currentTodos = await getMobileTodos();
+        const index = currentTodos.findIndex(t => t.id === id);
+        if (index !== -1) {
+          currentTodos[index].deleted = true;
+          currentTodos[index].deletedAt = Date.now();
+          await saveMobileTodos(currentTodos);
+          setTodos(currentTodos.filter(t => !t.deleted));
+        }
+      } else {
+        // Web 端使用 API
+        await fetch(`/api/todos?id=${id}`, { 
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+        setTodos(todos.filter((t) => t.id !== id));
+      }
+      hapticFeedback('heavy');
     } catch (error) {
       console.error('Failed to delete todo:', error);
     }
-  }, [todos, isAuthenticated, requestAuth, getAuthHeaders, isNativeApp]);
+  }, [todos, isAuthenticated, requestAuth, getAuthHeaders, isNativeApp, hapticFeedback]);
 
   // 开始编辑
   const startEdit = useCallback((id: string, text: string) => {
@@ -252,21 +335,34 @@ export default function Home() {
     }
 
     try {
-      const response = await fetch('/api/todos', {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(finalUpdates),
-      });
-      const updatedTodo = await response.json();
-      setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
+      if (isNativeApp) {
+        // 移动端使用本地存储
+        const currentTodos = await getMobileTodos();
+        const index = currentTodos.findIndex(t => t.id === id);
+        if (index !== -1) {
+          currentTodos[index] = { ...currentTodos[index], ...finalUpdates };
+          await saveMobileTodos(currentTodos);
+          setTodos(currentTodos.filter(t => !t.deleted));
+        }
+      } else {
+        // Web 端使用 API
+        const response = await fetch('/api/todos', {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          },
+          body: JSON.stringify(finalUpdates),
+        });
+        const updatedTodo = await response.json();
+        setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
+      }
       if (id === editingId) cancelEdit();
+      hapticFeedback('medium');
     } catch (error) {
       console.error('Failed to update todo:', error);
     }
-  }, [editText, todos, cancelEdit, editingId, getAuthHeaders, isAuthenticated, requestAuth, isNativeApp]);
+  }, [editText, todos, cancelEdit, editingId, getAuthHeaders, isAuthenticated, requestAuth, isNativeApp, hapticFeedback]);
 
   const updateTodoPriority = useCallback((id: string, priority: Priority) => {
     saveEdit(id, { priority });
@@ -279,21 +375,29 @@ export default function Home() {
   // AI 操作后刷新待办事项列表
   const refreshTodosFromAI = useCallback(async () => {
     try {
-      // 重新加载待办事项
-      const todosResponse = await fetch('/api/todos');
-      const todosData = await todosResponse.json();
-      setTodos(todosData.filter((t: Todo) => !t.deleted));
+      if (isNativeApp) {
+        // 移动端使用本地存储
+        const todosData = await getMobileTodos();
+        setTodos(todosData.filter((t: Todo) => !t.deleted));
 
-      // 重新加载分组
-      const groupsResponse = await fetch('/api/groups');
-      const groupsData = await groupsResponse.json();
-      setGroups(groupsData);
+        const groupsData = await getMobileGroups();
+        setGroups(groupsData);
+      } else {
+        // Web 端使用 API
+        const todosResponse = await fetch('/api/todos');
+        const todosData = await todosResponse.json();
+        setTodos(todosData.filter((t: Todo) => !t.deleted));
+
+        const groupsResponse = await fetch('/api/groups');
+        const groupsData = await groupsResponse.json();
+        setGroups(groupsData);
+      }
 
       console.log('[AI] Refreshed todos and groups');
     } catch (error) {
       console.error('Failed to refresh from AI:', error);
     }
-  }, []);
+  }, [isNativeApp]);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -516,86 +620,94 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Add Task Card Pro Max */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4 }}
-          className="glass-card p-2 rounded-[2rem] mb-10 sm:mb-12 shadow-2xl ring-1 ring-black/5 dark:ring-white/10"
-        >
-          <form onSubmit={addTodo} className="space-y-2">
-            <div className="flex gap-2 p-1">
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder={t.addTaskPlaceholder}
-                className="flex-1 bg-transparent border-none rounded-2xl px-5 py-4 text-base sm:text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all"
-              />
-              <button
-                type="submit"
-                disabled={!inputValue.trim()}
-                className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 sm:px-8 py-4 rounded-[1.5rem] font-bold flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer shadow-lg active:scale-95 hover:shadow-xl"
-              >
-                <Plus size={22} strokeWidth={3} />
-                <span className="hidden sm:inline text-sm uppercase tracking-wider">{t.addTask}</span>
-              </button>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3 px-4 pb-3">
-              {/* Group Selector - 仅在启用分组功能时显示 */}
-              {settings.enableGroups && (
-                <div className="relative group/select">
-                  <select
-                    value={selectedGroupId}
-                    onChange={(e) => setSelectedGroupId(e.target.value)}
-                    className="appearance-none bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase tracking-widest pl-8 pr-8 py-2 rounded-xl cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none ring-1 ring-slate-200 dark:ring-slate-700"
-                  >
-                    {groups.map((g, idx) => (
-                      <option key={`${g.id}-${idx}`} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
-                  <List className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                </div>
-              )}
-
-              {/* Priority Selector - 仅在启用优先级功能时显示 */}
-              {settings.enablePriority && (
-                <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
-                  {(['P0', 'P1', 'P2'] as Priority[]).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setSelectedPriority(p)}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
-                        selectedPriority === p
-                          ? p === 'P0' ? 'bg-red-500 text-white shadow-lg' :
-                            p === 'P1' ? 'bg-amber-500 text-white shadow-lg' :
-                            'bg-blue-500 text-white shadow-lg'
-                          : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Manage Groups Trigger - 仅在启用分组功能时显示 */}
-              {settings.enableGroups && (
+        {/* Add Task Card Pro Max - Desktop Only */}
+        {!isMobile && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="glass-card p-2 rounded-[2rem] mb-10 sm:mb-12 shadow-2xl ring-1 ring-black/5 dark:ring-white/10"
+          >
+            <form onSubmit={addTodo} className="space-y-2">
+              <div className="flex gap-2 p-1">
+                <input
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  placeholder={t.addTaskPlaceholder}
+                  className="flex-1 bg-transparent border-none rounded-2xl px-5 py-4 text-base sm:text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all"
+                />
                 <button
-                  type="button"
-                  onClick={() => setIsGroupModalOpen(true)}
-                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                  title={t.manageGroups}
+                  type="submit"
+                  disabled={!inputValue.trim()}
+                  className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 sm:px-8 py-4 rounded-[1.5rem] font-bold flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer shadow-lg active:scale-95 hover:shadow-xl"
                 >
-                  <FolderPlus size={18} />
+                  <Plus size={22} strokeWidth={3} />
+                  <span className="hidden sm:inline text-sm uppercase tracking-wider">{t.addTask}</span>
                 </button>
-              )}
-            </div>
-          </form>
-        </motion.div>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3 px-4 pb-3">
+                {/* Group Selector - 仅在启用分组功能时显示 */}
+                {settings.enableGroups && (
+                  <div className="relative group/select">
+                    <select
+                      value={selectedGroupId}
+                      onChange={(e) => setSelectedGroupId(e.target.value)}
+                      className="appearance-none bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase tracking-widest pl-8 pr-8 py-2 rounded-xl cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none ring-1 ring-slate-200 dark:ring-slate-700"
+                    >
+                      {groups.map((g, idx) => (
+                        <option key={`${g.id}-${idx}`} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                    <List className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  </div>
+                )}
+
+                {/* Priority Selector - 仅在启用优先级功能时显示 */}
+                {settings.enablePriority && (
+                  <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+                    {(['P0', 'P1', 'P2'] as Priority[]).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPriority(p);
+                          hapticFeedback('light');
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                          selectedPriority === p
+                            ? p === 'P0' ? 'bg-red-500 text-white shadow-lg' :
+                              p === 'P1' ? 'bg-amber-500 text-white shadow-lg' :
+                              'bg-blue-500 text-white shadow-lg'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Manage Groups Trigger - 仅在启用分组功能时显示 */}
+                {settings.enableGroups && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsGroupModalOpen(true);
+                      hapticFeedback('light');
+                    }}
+                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                    title={t.manageGroups}
+                  >
+                    <FolderPlus size={18} />
+                  </button>
+                )}
+              </div>
+            </form>
+          </motion.div>
+        )}
 
         {/* User Group Tabs - 仅显示用户自定义分组 */}
         {settings.enableGroups && groups.length > 0 && (
@@ -697,27 +809,39 @@ export default function Home() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
                       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                      className={`glass-card p-5 sm:p-6 rounded-[1.75rem] hover-lift group ${
+                      className={`glass-card p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[1.75rem] hover-lift group relative overflow-hidden ${
                         todo.completed ? 'opacity-60 grayscale-[0.5]' : ''
                       }`}
                     >
-                      <div className="flex items-center gap-4 sm:gap-6">
+                      {/* Priority left border indicator for mobile */}
+                      {isMobile && todo.priority && (
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                          todo.priority === 'P0' ? 'bg-red-500' :
+                          todo.priority === 'P1' ? 'bg-amber-500' :
+                          'bg-blue-500'
+                        }`} />
+                      )}
+
+                      <div className="flex items-center gap-3 sm:gap-6">
                         <motion.button
                           whileTap={{ scale: 0.8 }}
-                          onClick={() => toggleTodo(todo.id, todo.completed)}
-                          className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 cursor-pointer ${
+                          onClick={() => {
+                            toggleTodo(todo.id, todo.completed);
+                            hapticFeedback('light');
+                          }}
+                          className={`flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 cursor-pointer ${
                             todo.completed 
                               ? 'bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/20' 
                               : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-400'
                           }`}
                         >
-                          {todo.completed && <CheckCheck className="text-white" size={18} strokeWidth={3} />}
+                          {todo.completed && <CheckCheck className="text-white" size={isMobile ? 14 : 18} strokeWidth={3} />}
                         </motion.button>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {/* Priority Indicator - 仅在启用优先级功能时显示 */}
-                            {settings.enablePriority && todo.priority && (
+                          <div className="flex items-center gap-2 mb-0.5 sm:mb-1">
+                            {/* Priority Indicator - Desktop Only (Mobile uses left bar) */}
+                            {!isMobile && settings.enablePriority && todo.priority && (
                               <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
                                 todo.priority === 'P0' ? 'bg-red-500 text-white shadow-sm' :
                                 todo.priority === 'P1' ? 'bg-amber-500 text-white shadow-sm' :
@@ -726,9 +850,9 @@ export default function Home() {
                                 {todo.priority}
                               </span>
                             )}
-                            {/* Group Tag - 仅在启用分组功能时显示 */}
+                            {/* Group Tag */}
                             {settings.enableGroups && todo.groupId && todo.groupId !== DEFAULT_GROUP_ID && (
-                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-[9px] font-bold uppercase tracking-widest ring-1 ring-slate-200 dark:ring-slate-700">
+                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-[8px] sm:text-[9px] font-bold uppercase tracking-widest ring-1 ring-slate-200 dark:ring-slate-700">
                                 {groups.find(g => g.id === todo.groupId)?.name || '...'}
                               </span>
                             )}
@@ -746,28 +870,21 @@ export default function Home() {
                                   if (e.key === 'Escape') cancelEdit();
                                 }}
                                 autoFocus
-                                className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3 py-1.5 text-base sm:text-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                               />
                               <motion.button
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => saveEdit(todo.id)}
-                                className="p-2 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors cursor-pointer"
+                                className="p-1.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors cursor-pointer"
                               >
-                                <Check size={18} strokeWidth={3} />
-                              </motion.button>
-                              <motion.button
-                                whileTap={{ scale: 0.9 }}
-                                onClick={cancelEdit}
-                                className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors cursor-pointer"
-                              >
-                                <X size={18} strokeWidth={3} />
+                                <Check size={16} strokeWidth={3} />
                               </motion.button>
                             </div>
                           ) : (
                             // 显示模式
                             <div onClick={() => toggleTodo(todo.id, todo.completed)}>
                               <p
-                                className={`text-lg sm:text-xl font-semibold mb-1 transition-all duration-500 break-words ${
+                                className={`text-base sm:text-xl font-semibold mb-0.5 transition-all duration-500 break-words ${
                                   todo.completed
                                     ? 'line-through text-slate-400 dark:text-slate-500 italic'
                                     : 'text-slate-900 dark:text-white'
@@ -775,21 +892,15 @@ export default function Home() {
                               >
                                 {todo.text}
                               </p>
-                              <div className="flex items-center gap-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
-                                <span className="flex items-center gap-1.5">
-                                  <Calendar size={12} strokeWidth={2.5} />
+                              <div className="flex items-center gap-3 text-[8px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
+                                <span className="flex items-center gap-1">
+                                  <Calendar size={isMobile ? 10 : 12} strokeWidth={2.5} />
                                   {formatDate(todo.createdAt)}
                                 </span>
                                 {todo.dueDate && (
-                                  <span className="flex items-center gap-1.5 text-orange-500">
-                                    <Clock size={12} strokeWidth={2.5} />
-                                    {settings.language === 'zh' ? '截止' : 'Due'}: {formatDueDate(todo.dueDate)}
-                                  </span>
-                                )}
-                                {todo.completedAt && (
-                                  <span className="flex items-center gap-1.5 text-emerald-500">
-                                    <CheckCircle2 size={12} strokeWidth={2.5} />
-                                    {formatDate(todo.completedAt)}
+                                  <span className="flex items-center gap-1 text-orange-500">
+                                    <Clock size={isMobile ? 10 : 12} strokeWidth={2.5} />
+                                    {formatDueDate(todo.dueDate)}
                                   </span>
                                 )}
                               </div>
@@ -799,45 +910,45 @@ export default function Home() {
 
                         {/* 操作按钮 */}
                         {editingId !== todo.id && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5 sm:gap-1">
+                            {/* Mobile menu button */}
                             <motion.button
-                              whileHover={{ scale: 1.1, backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
                               whileTap={{ scale: 0.9 }}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                startEdit(todo.id, todo.text);
+                                hapticFeedback('light');
+                                if (openMenuId === todo.id) {
+                                  setOpenMenuId(null);
+                                  setMenuPosition(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setMenuPosition({
+                                    top: rect.bottom + 8,
+                                    right: window.innerWidth - rect.right
+                                  });
+                                  setOpenMenuId(todo.id);
+                                }
                               }}
-                              className="p-3 rounded-2xl text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-all duration-300 cursor-pointer"
+                              className="p-2 sm:p-3 rounded-2xl text-slate-300 hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-300 transition-all duration-300 cursor-pointer"
                             >
-                              <Pencil size={18} strokeWidth={2.5} />
+                              <MoreVertical size={isMobile ? 16 : 18} strokeWidth={2.5} />
                             </motion.button>
-                            
-                            {/* Quick Priority/Group Select for existing items */}
-                            <div className="relative">
+
+                            {/* Desktop only Pencil */}
+                            {!isMobile && (
                               <motion.button
-                                whileHover={{ scale: 1.1, backgroundColor: 'rgba(100, 116, 139, 0.1)' }}
+                                whileHover={{ scale: 1.1, backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (openMenuId === todo.id) {
-                                    setOpenMenuId(null);
-                                    setMenuPosition(null);
-                                  } else {
-                                    // 计算菜单位置
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setMenuPosition({
-                                      top: rect.bottom + 8,
-                                      right: window.innerWidth - rect.right
-                                    });
-                                    setOpenMenuId(todo.id);
-                                  }
+                                  startEdit(todo.id, todo.text);
                                 }}
-                                className="p-3 rounded-2xl text-slate-300 hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-300 transition-all duration-300 cursor-pointer"
+                                className="p-3 rounded-2xl text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-all duration-300 cursor-pointer"
                               >
-                                <MoreVertical size={18} strokeWidth={2.5} />
+                                <Pencil size={18} strokeWidth={2.5} />
                               </motion.button>
-                            </div>
-
+                            )}
+                            
                             <motion.button
                               whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
                               whileTap={{ scale: 0.9 }}
@@ -845,9 +956,9 @@ export default function Home() {
                                 e.stopPropagation();
                                 deleteTodo(todo.id);
                               }}
-                              className="p-3 rounded-2xl text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-all duration-300 cursor-pointer"
+                              className="p-2 sm:p-3 rounded-2xl text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-all duration-300 cursor-pointer"
                             >
-                              <Trash2 size={20} strokeWidth={2.5} />
+                              <Trash2 size={isMobile ? 18 : 20} strokeWidth={2.5} />
                             </motion.button>
                           </div>
                         )}
@@ -882,8 +993,12 @@ export default function Home() {
         </p>
       </motion.footer>
 
-      {/* Fixed Bottom Nav Pro Max (Mobile Only) - 时间筛选 */}
-      {isMobile && (
+      {/* Fixed Bottom Nav - 移动端原生 App 使用语音按钮，Web 移动端使用时间筛选 */}
+      {isMobile && isNativeApp && (
+        <VoiceButton onRefreshTodos={refreshTodosFromAI} />
+      )}
+      
+      {isMobile && !isNativeApp && (
         <motion.div
           initial={{ y: 100 }}
           animate={{ y: 0 }}
@@ -926,23 +1041,34 @@ export default function Home() {
         </motion.div>
       )}
 
-      {/* Group Management Modal Pro Max */}
+      {/* Group Management Modal/Sheet Pro Max */}
       <AnimatePresence>
         {isGroupModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-slate-900/40"
-            onClick={() => setIsGroupModalOpen(false)}
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-xl bg-slate-900/40"
+            onClick={() => {
+              setIsGroupModalOpen(false);
+              hapticFeedback('light');
+            }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="glass-card w-full max-w-md p-8 rounded-[3rem] shadow-2xl relative overflow-hidden"
+              initial={isMobile ? { y: '100%' } : { scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ y: 0, scale: 1, opacity: 1 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="glass-card w-full max-w-md p-8 rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl relative overflow-hidden mb-safe"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* iOS Style Handle for Bottom Sheet */}
+              {isMobile && (
+                <div className="flex justify-center mb-6 -mt-2">
+                  <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full opacity-50" />
+                </div>
+              )}
+
               <div className="flex justify-between items-center mb-8">
                 <div>
                   <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">
@@ -951,7 +1077,10 @@ export default function Home() {
                   <div className="h-1 w-8 bg-blue-500 rounded-full mt-1" />
                 </div>
                 <button 
-                  onClick={() => setIsGroupModalOpen(false)}
+                  onClick={() => {
+                    setIsGroupModalOpen(false);
+                    hapticFeedback('light');
+                  }}
                   className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-colors"
                 >
                   <X size={20} />
@@ -977,7 +1106,7 @@ export default function Home() {
               </form>
 
               {/* Groups List */}
-              <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-3 max-h-[50vh] sm:max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                 {groups.map((g, idx) => (
                   <div 
                     key={`${g.id}-${idx}`} 
@@ -1002,6 +1131,138 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Add Task Sheet Pro Max (Mobile Only) */}
+      <AnimatePresence>
+        {isAddSheetOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center backdrop-blur-xl bg-slate-900/40"
+            onClick={() => setIsAddSheetOpen(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="glass-card w-full p-8 rounded-t-[3rem] shadow-2xl relative overflow-hidden mb-safe"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* iOS Style Handle */}
+              <div className="flex justify-center mb-6 -mt-2">
+                <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full opacity-50" />
+              </div>
+
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">
+                  {t.addTask}
+                </h3>
+                <button 
+                  onClick={() => setIsAddSheetOpen(false)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={addTodo} className="space-y-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder={t.addTaskPlaceholder}
+                    autoFocus
+                    className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-2xl px-6 py-5 text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none ring-1 ring-inset ring-slate-200 dark:ring-slate-700 transition-all"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  {/* Group Selection */}
+                  {settings.enableGroups && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2">{t.groups}</p>
+                      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                        {groups.map((g, idx) => (
+                          <button
+                            key={`${g.id}-${idx}`}
+                            type="button"
+                            onClick={() => {
+                              setSelectedGroupId(g.id);
+                              hapticFeedback('light');
+                            }}
+                            className={`whitespace-nowrap px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                              selectedGroupId === g.id
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                            }`}
+                          >
+                            {g.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Priority Selection */}
+                  {settings.enablePriority && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2">{t.priority}</p>
+                      <div className="grid grid-cols-3 gap-3">
+                        {(['P0', 'P1', 'P2'] as Priority[]).map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPriority(p);
+                              hapticFeedback('light');
+                            }}
+                            className={`py-3 rounded-xl text-xs font-black transition-all ${
+                              selectedPriority === p
+                                ? p === 'P0' ? 'bg-red-500 text-white shadow-lg' :
+                                  p === 'P1' ? 'bg-amber-500 text-white shadow-lg' :
+                                  'bg-blue-500 text-white shadow-lg'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!inputValue.trim()}
+                  className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-5 rounded-2xl font-black text-lg uppercase tracking-widest transition-all shadow-xl active:scale-95 disabled:opacity-20"
+                >
+                  {t.addTask}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Add Button (Mobile Only) */}
+      {isMobile && !isAddSheetOpen && (
+        <motion.button
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => {
+            setIsAddSheetOpen(true);
+            hapticFeedback('medium');
+          }}
+          className="fixed bottom-24 right-6 z-[60] w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:bg-blue-700 active:bg-blue-800 ring-4 ring-white dark:ring-slate-900"
+        >
+          <Plus size={32} strokeWidth={3} />
+        </motion.button>
+      )}
 
       {/* Fixed Position Menu Portal */}
       <AnimatePresence>
@@ -1108,8 +1369,8 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* AI Chat 助手 */}
-      <AIChat onRefreshTodos={refreshTodosFromAI} />
+      {/* AI Chat 助手 - 仅 Web 端显示 */}
+      {!isNativeApp && <AIChat onRefreshTodos={refreshTodosFromAI} />}
     </main>
   );
 }

@@ -143,7 +143,10 @@ body.keyboard-open {
 /* iOS 输入框样式重置 */
 input, textarea, select {
   -webkit-appearance: none;
-  border-radius: 0;
+}
+
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom);
 }
 
 /* iPad 分栏布局支持 */

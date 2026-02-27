@@ -3,6 +3,7 @@
 //  Todos
 //
 //  任务行视图
+//  Author: Adrian Stark
 //
 
 import SwiftUI
@@ -18,7 +19,6 @@ struct TodoRow: View {
     @State private var editText = ""
     @State private var showEditSheet = false
     
-    // 优先级颜色
     private var priorityColor: Color {
         switch todo.priority {
         case .p0: return .red
@@ -27,7 +27,6 @@ struct TodoRow: View {
         }
     }
     
-    // 分组名称
     private var groupName: String? {
         guard settings.enableGroups, let groupId = todo.groupId else { return nil }
         return groups.first { $0.id == groupId }?.name
@@ -35,7 +34,6 @@ struct TodoRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // 优先级指示器
             if settings.enablePriority {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(priorityColor)
@@ -44,10 +42,7 @@ struct TodoRow: View {
             
             // 完成按钮
             Button {
-                HapticManager.shared.mediumImpact()
-                withAnimation(.spring(response: 0.3)) {
-                    toggleComplete()
-                }
+                toggleComplete()
             } label: {
                 ZStack {
                     Circle()
@@ -67,7 +62,7 @@ struct TodoRow: View {
             }
             .buttonStyle(.plain)
             
-            // 内容区域
+            // 内容
             VStack(alignment: .leading, spacing: 4) {
                 if isEditing {
                     TextField("", text: $editText)
@@ -81,58 +76,16 @@ struct TodoRow: View {
                         .lineLimit(2)
                 }
                 
-                // 元信息
-                HStack(spacing: 8) {
-                    // 分组标签
-                    if let name = groupName {
-                        Label(name, systemImage: "folder")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    // 截止日期
-                    if let dueDate = todo.dueDate {
-                        Label(dueDate.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
-                            .font(.system(size: 11))
-                            .foregroundStyle(dueDate < Date() && !todo.completed ? .red : .secondary)
-                    }
-                    
-                    // 优先级标签
-                    if settings.enablePriority && !todo.completed {
-                        Text(todo.priority.displayName)
-                            .font(.system(size: 10, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(priorityColor.opacity(0.15))
-                            .foregroundStyle(priorityColor)
-                            .clipShape(Capsule())
-                    }
+                // 元信息（仅非编辑态显示）
+                if !isEditing {
+                    metaInfoView
                 }
             }
             
-            Spacer()
+            Spacer(minLength: 4)
             
-            // 操作按钮
             if isEditing {
-                HStack(spacing: 8) {
-                    Button {
-                        HapticManager.shared.lightImpact()
-                        cancelEdit()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button {
-                        HapticManager.shared.success()
-                        saveEdit()
-                    } label: {
-                        Image(systemName: "checkmark")
-                            .foregroundStyle(.green)
-                    }
-                    .buttonStyle(.plain)
-                }
+                editButtons
             }
         }
         .padding(.horizontal, 16)
@@ -151,21 +104,75 @@ struct TodoRow: View {
         }
     }
     
+    // MARK: - 子视图（拆分减少 body 复杂度）
+    
+    @ViewBuilder
+    private var metaInfoView: some View {
+        let hasGroup = groupName != nil
+        let hasDueDate = todo.dueDate != nil
+        let hasPriority = settings.enablePriority && !todo.completed
+        
+        if hasGroup || hasDueDate || hasPriority {
+            HStack(spacing: 8) {
+                if let name = groupName {
+                    Label(name, systemImage: "folder")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                
+                if let dueDate = todo.dueDate {
+                    Label(dueDate.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                        .font(.system(size: 11))
+                        .foregroundStyle(dueDate < Date() && !todo.completed ? .red : .secondary)
+                }
+                
+                if hasPriority {
+                    Text(todo.priority.displayName)
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(priorityColor.opacity(0.15))
+                        .foregroundStyle(priorityColor)
+                        .clipShape(Capsule())
+                }
+            }
+        }
+    }
+    
+    private var editButtons: some View {
+        HStack(spacing: 8) {
+            Button {
+                HapticManager.shared.lightImpact()
+                cancelEdit()
+            } label: {
+                Image(systemName: "xmark")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+            
+            Button {
+                HapticManager.shared.success()
+                saveEdit()
+            } label: {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(.green)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
     // MARK: - 方法
     
     private func toggleComplete() {
-        if todo.completed {
-            todo.markIncomplete()
-        } else {
-            todo.markComplete()
-            HapticManager.shared.success()
+        HapticManager.shared.mediumImpact()
+        withAnimation(.spring(response: 0.3)) {
+            if todo.completed {
+                todo.markIncomplete()
+            } else {
+                todo.markComplete()
+            }
+            try? modelContext.save()
         }
-        try? modelContext.save()
-    }
-    
-    private func startEdit() {
-        editText = todo.text
-        isEditing = true
     }
     
     private func cancelEdit() {
@@ -174,8 +181,9 @@ struct TodoRow: View {
     }
     
     private func saveEdit() {
-        if !editText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            todo.text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            todo.text = trimmed
             try? modelContext.save()
         }
         isEditing = false
@@ -200,7 +208,6 @@ struct TodoEditSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                // 任务内容
                 Section {
                     TextField(settings.localized(.taskPlaceholder), text: $editText, axis: .vertical)
                         .lineLimit(3...6)
@@ -208,7 +215,6 @@ struct TodoEditSheet: View {
                     Text(settings.language == .zh ? "任务内容" : "Task Content")
                 }
                 
-                // 优先级
                 if settings.enablePriority {
                     Section {
                         Picker(settings.localized(.priority), selection: $selectedPriority) {
@@ -223,15 +229,11 @@ struct TodoEditSheet: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .onChange(of: selectedPriority) { _, _ in
-                            HapticManager.shared.selection()
-                        }
                     } header: {
                         Text(settings.localized(.priority))
                     }
                 }
                 
-                // 分组
                 if settings.enableGroups {
                     Section {
                         Picker(settings.localized(.allGroups), selection: $selectedGroupId) {
@@ -244,21 +246,14 @@ struct TodoEditSheet: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .onChange(of: selectedGroupId) { _, _ in
-                            HapticManager.shared.selection()
-                        }
                     } header: {
                         Text(settings.localized(.allGroups))
                     }
                 }
                 
-                // 截止日期
                 Section {
                     Toggle(isOn: $hasDueDate.animation()) {
                         Label(settings.language == .zh ? "设置截止日期" : "Set Due Date", systemImage: "calendar")
-                    }
-                    .onChange(of: hasDueDate) { _, _ in
-                        HapticManager.shared.selection()
                     }
                     
                     if hasDueDate {
@@ -270,7 +265,6 @@ struct TodoEditSheet: View {
                     }
                 }
                 
-                // 删除按钮
                 Section {
                     Button(role: .destructive) {
                         HapticManager.shared.warning()
@@ -286,7 +280,6 @@ struct TodoEditSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(settings.localized(.cancel)) {
-                        HapticManager.shared.lightImpact()
                         dismiss()
                     }
                 }
@@ -336,7 +329,6 @@ struct TodoEditSheet: View {
         todo.priority = selectedPriority
         todo.groupId = selectedGroupId
         todo.dueDate = hasDueDate ? dueDate : nil
-        
         try? modelContext.save()
         dismiss()
     }

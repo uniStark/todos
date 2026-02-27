@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  Todos
 //
-//  主内容视图：Tab 导航
+//  主内容视图：Tab 导航（懒加载各 Tab 页面）
 //  Author: Adrian Stark
 //
 
@@ -12,6 +12,7 @@ import SwiftData
 struct ContentView: View {
     @EnvironmentObject var settings: SettingsManager
     @State private var selectedTab = 0
+    @State private var loadedTabs: Set<Int> = [0]
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -22,20 +23,37 @@ struct ContentView: View {
                 .tag(0)
             
             if AppConfig.enableAnalytics {
-                AnalyticsView()
-                    .tabItem {
-                        Label(settings.localized(.analytics), systemImage: "chart.bar")
+                Group {
+                    if loadedTabs.contains(1) {
+                        AnalyticsView()
+                    } else {
+                        Color(.systemGroupedBackground)
                     }
-                    .tag(1)
+                }
+                .tabItem {
+                    Label(settings.localized(.analytics), systemImage: "chart.bar")
+                }
+                .tag(1)
             }
             
-            SettingsView()
-                .tabItem {
-                    Label(settings.localized(.settings), systemImage: "gearshape")
+            Group {
+                if loadedTabs.contains(2) {
+                    SettingsView()
+                } else {
+                    Color(.systemGroupedBackground)
                 }
-                .tag(2)
+            }
+            .tabItem {
+                Label(settings.localized(.settings), systemImage: "gearshape")
+            }
+            .tag(2)
         }
         .tint(.blue)
+        .onChange(of: selectedTab) { _, newTab in
+            if !loadedTabs.contains(newTab) {
+                loadedTabs.insert(newTab)
+            }
+        }
     }
 }
 

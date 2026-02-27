@@ -3,62 +3,63 @@
 //  Todos
 //
 //  触觉反馈管理器
+//  Author: Adrian Stark
 //
 
 import UIKit
 
-/// 触觉反馈管理器
 final class HapticManager {
     static let shared = HapticManager()
     
-    private init() {}
+    private let lightGenerator = UIImpactFeedbackGenerator(style: .light)
+    private let mediumGenerator = UIImpactFeedbackGenerator(style: .medium)
+    private let heavyGenerator = UIImpactFeedbackGenerator(style: .heavy)
+    private let notificationGenerator = UINotificationFeedbackGenerator()
+    private let selectionGenerator = UISelectionFeedbackGenerator()
     
-    /// 轻触反馈
+    private init() {
+        prepareAll()
+    }
+    
+    private func prepareAll() {
+        lightGenerator.prepare()
+        mediumGenerator.prepare()
+        notificationGenerator.prepare()
+        selectionGenerator.prepare()
+    }
+    
     func lightImpact() {
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.prepare()
-        generator.impactOccurred()
+        lightGenerator.impactOccurred()
+        lightGenerator.prepare()
     }
     
-    /// 中等触反馈
     func mediumImpact() {
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.prepare()
-        generator.impactOccurred()
+        mediumGenerator.impactOccurred()
+        mediumGenerator.prepare()
     }
     
-    /// 重触反馈
     func heavyImpact() {
-        let generator = UIImpactFeedbackGenerator(style: .heavy)
-        generator.prepare()
-        generator.impactOccurred()
+        heavyGenerator.impactOccurred()
+        heavyGenerator.prepare()
     }
     
-    /// 成功反馈
     func success() {
-        let generator = UINotificationFeedbackGenerator()
-        generator.prepare()
-        generator.notificationOccurred(.success)
+        notificationGenerator.notificationOccurred(.success)
+        notificationGenerator.prepare()
     }
     
-    /// 警告反馈
     func warning() {
-        let generator = UINotificationFeedbackGenerator()
-        generator.prepare()
-        generator.notificationOccurred(.warning)
+        notificationGenerator.notificationOccurred(.warning)
+        notificationGenerator.prepare()
     }
     
-    /// 错误反馈
     func error() {
-        let generator = UINotificationFeedbackGenerator()
-        generator.prepare()
-        generator.notificationOccurred(.error)
+        notificationGenerator.notificationOccurred(.error)
+        notificationGenerator.prepare()
     }
     
-    /// 选择反馈
     func selection() {
-        let generator = UISelectionFeedbackGenerator()
-        generator.prepare()
-        generator.selectionChanged()
+        selectionGenerator.selectionChanged()
+        selectionGenerator.prepare()
     }
 }

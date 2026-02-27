@@ -3,13 +3,13 @@
 //  Todos
 //
 //  动画组件和视图修饰符
+//  Author: Adrian Stark
 //
 
 import SwiftUI
 
-// MARK: - 视图修饰符
+// MARK: - 按钮样式
 
-/// 按压缩放效果
 struct PressableButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -18,7 +18,6 @@ struct PressableButtonStyle: ButtonStyle {
     }
 }
 
-/// 弹跳按钮样式
 struct BounceButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -28,26 +27,7 @@ struct BounceButtonStyle: ButtonStyle {
     }
 }
 
-/// 卡片悬停效果
-struct CardHoverModifier: ViewModifier {
-    @State private var isHovered = false
-    
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(isHovered ? 1.02 : 1)
-            .shadow(color: .black.opacity(isHovered ? 0.15 : 0.08), radius: isHovered ? 12 : 8, y: isHovered ? 6 : 4)
-            .animation(.spring(response: 0.3), value: isHovered)
-            .onHover { hovering in
-                isHovered = hovering
-            }
-    }
-}
-
 extension View {
-    func cardHover() -> some View {
-        modifier(CardHoverModifier())
-    }
-    
     func pressableButton() -> some View {
         buttonStyle(PressableButtonStyle())
     }
@@ -68,7 +48,7 @@ struct FadeInModifier: ViewModifier {
             .opacity(isVisible ? 1 : 0)
             .offset(y: isVisible ? 0 : 20)
             .onAppear {
-                withAnimation(.easeOut(duration: 0.5).delay(delay)) {
+                withAnimation(.easeOut(duration: 0.4).delay(delay)) {
                     isVisible = true
                 }
             }
@@ -78,30 +58,6 @@ struct FadeInModifier: ViewModifier {
 extension View {
     func fadeIn(delay: Double = 0) -> some View {
         modifier(FadeInModifier(delay: delay))
-    }
-}
-
-// MARK: - 脉冲动画
-
-struct PulseModifier: ViewModifier {
-    @State private var isPulsing = false
-    let duration: Double
-    
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(isPulsing ? 1.1 : 1)
-            .opacity(isPulsing ? 0.8 : 1)
-            .onAppear {
-                withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: true)) {
-                    isPulsing = true
-                }
-            }
-    }
-}
-
-extension View {
-    func pulse(duration: Double = 1) -> some View {
-        modifier(PulseModifier(duration: duration))
     }
 }
 
@@ -137,14 +93,11 @@ struct FloatingActionButton: View {
     let color: Color
     let action: () -> Void
     
-    @State private var isPressed = false
-    
     var body: some View {
-        Button(action: {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
+        Button {
+            HapticManager.shared.mediumImpact()
             action()
-        }) {
+        } label: {
             Image(systemName: icon)
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(.white)
@@ -155,13 +108,7 @@ struct FloatingActionButton: View {
                         .shadow(color: color.opacity(0.4), radius: 8, y: 4)
                 )
         }
-        .scaleEffect(isPressed ? 0.9 : 1)
-        .animation(.spring(response: 0.3), value: isPressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in isPressed = true }
-                .onEnded { _ in isPressed = false }
-        )
+        .buttonStyle(BounceButtonStyle())
     }
 }
 
@@ -189,123 +136,35 @@ struct LoadingIndicator: View {
     }
 }
 
-// MARK: - 完成动画
-
-struct CheckmarkAnimation: View {
-    @State private var isComplete = false
-    let onComplete: () -> Void
-    
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(.green)
-                .frame(width: 60, height: 60)
-                .scaleEffect(isComplete ? 1 : 0)
-            
-            Image(systemName: "checkmark")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(.white)
-                .scaleEffect(isComplete ? 1 : 0)
-        }
-        .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                isComplete = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                onComplete()
-            }
-        }
-    }
-}
-
-// MARK: - 骨架屏
-
-struct SkeletonView: View {
-    @State private var isAnimating = false
-    
-    var body: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color(.systemGray5),
-                        Color(.systemGray4),
-                        Color(.systemGray5)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .offset(x: isAnimating ? 200 : -200)
-            .animation(.linear(duration: 1.5).repeatForever(autoreverses: false), value: isAnimating)
-            .onAppear {
-                isAnimating = true
-            }
-            .mask(
-                RoundedRectangle(cornerRadius: 8)
-            )
-    }
-}
-
-// MARK: - 语音波形动画
+// MARK: - 语音波形动画（使用 TimelineView 替代 Timer 避免泄漏）
 
 struct VoiceWaveform: View {
     let isAnimating: Bool
-    @State private var phases: [CGFloat] = [0, 0.2, 0.4, 0.1, 0.3]
     
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<5, id: \.self) { index in
-                Capsule()
-                    .fill(.blue)
-                    .frame(width: 4, height: isAnimating ? 20 + phases[index] * 20 : 8)
-                    .animation(
-                        isAnimating ?
-                            .easeInOut(duration: 0.3 + Double(index) * 0.1)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.05) :
-                            .easeOut(duration: 0.2),
-                        value: isAnimating
-                    )
-            }
-        }
-        .onAppear {
-            if isAnimating {
-                startAnimation()
-            }
-        }
-        .onChange(of: isAnimating) { _, newValue in
-            if newValue {
-                startAnimation()
-            }
-        }
-    }
-    
-    private func startAnimation() {
-        Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { timer in
-            if !isAnimating {
-                timer.invalidate()
-                return
-            }
-            for i in 0..<phases.count {
-                phases[i] = CGFloat.random(in: 0...1)
+        TimelineView(.animation(minimumInterval: 0.15, paused: !isAnimating)) { timeline in
+            HStack(spacing: 4) {
+                ForEach(0..<5, id: \.self) { index in
+                    let seed = timeline.date.timeIntervalSinceReferenceDate * 10 + Double(index)
+                    let height: CGFloat = isAnimating
+                        ? 20 + CGFloat(abs(sin(seed))) * 20
+                        : 8
+                    
+                    Capsule()
+                        .fill(.blue)
+                        .frame(width: 4, height: height)
+                        .animation(.easeInOut(duration: 0.15), value: height)
+                }
             }
         }
     }
 }
-
-// MARK: - 预览
 
 #Preview("Animations") {
     VStack(spacing: 20) {
         FloatingActionButton(icon: "plus", color: .blue) {}
-        
         LoadingIndicator()
-        
         VoiceWaveform(isAnimating: true)
-        
-        SkeletonView()
-            .frame(width: 200, height: 20)
     }
     .padding()
 }

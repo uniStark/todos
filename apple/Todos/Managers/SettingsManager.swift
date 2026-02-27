@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import Combine
 import CloudKit
 
 /// 支持的语言

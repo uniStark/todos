@@ -3,43 +3,34 @@
 //  Todos
 //
 //  主页视图：Todo 列表
+//  Author: Adrian Stark
 //
 
 import SwiftUI
 import SwiftData
 
-/// 任务筛选类型
 enum TaskFilter: String, CaseIterable {
-    case all
-    case active
-    case completed
+    case all, active, completed
 }
 
-/// 时间筛选类型
 enum TimeFilter: String, CaseIterable {
-    case all
-    case past
-    case today
-    case future
+    case all, past, today, future
 }
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var settings: SettingsManager
     
-    // 查询所有任务
     @Query(sort: \TodoItem.createdAt, order: .reverse)
     private var allTodosRaw: [TodoItem]
     
     @Query(sort: \TodoGroup.createdAt)
     private var groups: [TodoGroup]
     
-    // 过滤掉已删除的任务
     private var allTodos: [TodoItem] {
         allTodosRaw.filter { !$0.isDeleted }
     }
     
-    // 状态
     @State private var taskFilter: TaskFilter = .all
     @State private var timeFilter: TimeFilter = .all
     @State private var selectedGroupId: UUID? = nil
@@ -48,96 +39,75 @@ struct HomeView: View {
     @State private var showVoiceSheet = false
     @State private var searchText = ""
     
-    // 筛选后的任务
-    private var filteredTodos: [TodoItem] {
-        var result = allTodos
+    // 单次遍历计算统计和筛选
+    private var todoStats: (active: Int, completed: Int, filtered: [TodoItem]) {
+        let todos = allTodos
+        var activeCount = 0
+        var completedCount = 0
+        var filtered: [TodoItem] = []
         
-        // 按状态筛选
-        switch taskFilter {
-        case .all:
-            break
-        case .active:
-            result = result.filter { !$0.completed }
-        case .completed:
-            result = result.filter { $0.completed }
-        }
-        
-        // 按时间筛选
-        switch timeFilter {
-        case .all:
-            break
-        case .past:
-            result = result.filter { $0.isPast }
-        case .today:
-            result = result.filter { $0.isToday }
-        case .future:
-            result = result.filter { $0.isFuture }
-        }
-        
-        // 按分组筛选
-        if let groupId = selectedGroupId {
-            result = result.filter { $0.groupId == groupId }
-        }
-        
-        // 搜索
-        if !searchText.isEmpty {
-            result = result.filter { $0.text.localizedCaseInsensitiveContains(searchText) }
-        }
-        
-        // 排序：未完成优先 > 优先级 > 创建时间
-        return result.sorted { todo1, todo2 in
-            // 未完成的排在前面
-            if todo1.completed != todo2.completed {
-                return !todo1.completed
+        for todo in todos {
+            if todo.completed {
+                completedCount += 1
+            } else {
+                activeCount += 1
             }
-            // 如果都是已完成，按完成时间降序
+            
+            // 状态筛选
+            switch taskFilter {
+            case .all: break
+            case .active: if todo.completed { continue }
+            case .completed: if !todo.completed { continue }
+            }
+            
+            // 时间筛选
+            switch timeFilter {
+            case .all: break
+            case .past: if !todo.isPast { continue }
+            case .today: if !todo.isToday { continue }
+            case .future: if !todo.isFuture { continue }
+            }
+            
+            // 分组筛选
+            if let groupId = selectedGroupId, todo.groupId != groupId {
+                continue
+            }
+            
+            // 搜索
+            if !searchText.isEmpty && !todo.text.localizedCaseInsensitiveContains(searchText) {
+                continue
+            }
+            
+            filtered.append(todo)
+        }
+        
+        filtered.sort { todo1, todo2 in
+            if todo1.completed != todo2.completed { return !todo1.completed }
             if todo1.completed && todo2.completed {
-                return (todo1.completedAt ?? Date.distantPast) > (todo2.completedAt ?? Date.distantPast)
+                return (todo1.completedAt ?? .distantPast) > (todo2.completedAt ?? .distantPast)
             }
-            // 按优先级排序
             if todo1.priority.sortOrder != todo2.priority.sortOrder {
                 return todo1.priority.sortOrder < todo2.priority.sortOrder
             }
-            // 按创建时间降序
             return todo1.createdAt > todo2.createdAt
         }
-    }
-    
-    // 统计
-    private var activeCount: Int {
-        allTodos.filter { !$0.completed }.count
-    }
-    
-    private var completedCount: Int {
-        allTodos.filter { $0.completed }.count
+        
+        return (activeCount, completedCount, filtered)
     }
     
     var body: some View {
+        let stats = todoStats
+        
         NavigationStack {
             ZStack {
-                // 背景渐变
-                LinearGradient(
-                    colors: [
-                        Color(.systemBackground),
-                        Color(.systemGray6).opacity(0.5)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                Color(.systemBackground)
+                    .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // 头部 Logo
                     headerView
-                    
-                    // 统计卡片
-                    statsView
-                    
-                    // 时间筛选
+                    statsView(total: allTodos.count, active: stats.active, completed: stats.completed)
                     timeFilterView
-                    
-                    // 任务列表
-                    todoListView
+                    todoListView(stats.filtered)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -172,7 +142,7 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showVoiceSheet) {
                 if AppConfig.enableVoiceInput && AppConfig.enableAIAssistant {
-                    VoiceInputSheet { refreshData() }
+                    VoiceInputSheet { }
                 }
             }
             .overlay(alignment: .bottom) {
@@ -192,7 +162,6 @@ struct HomeView: View {
     
     // MARK: - 子视图
     
-    /// 头部 Logo
     private var headerView: some View {
         VStack(spacing: 8) {
             Text(settings.logoText)
@@ -214,50 +183,42 @@ struct HomeView: View {
         .padding(.vertical, 16)
     }
     
-    /// 统计卡片
-    private var statsView: some View {
+    private func statsView(total: Int, active: Int, completed: Int) -> some View {
         HStack(spacing: 12) {
             StatCard(
                 title: settings.localized(.allTasks),
-                value: "\(allTodos.count)",
+                value: "\(total)",
                 isSelected: taskFilter == .all,
                 color: .blue
             ) {
                 HapticManager.shared.selection()
-                withAnimation(.spring(response: 0.3)) {
-                    taskFilter = .all
-                }
+                withAnimation(.spring(response: 0.3)) { taskFilter = .all }
             }
             
             StatCard(
                 title: settings.localized(.activeTasks),
-                value: "\(activeCount)",
+                value: "\(active)",
                 isSelected: taskFilter == .active,
                 color: .orange
             ) {
                 HapticManager.shared.selection()
-                withAnimation(.spring(response: 0.3)) {
-                    taskFilter = .active
-                }
+                withAnimation(.spring(response: 0.3)) { taskFilter = .active }
             }
             
             StatCard(
                 title: settings.localized(.completedTasks),
-                value: "\(completedCount)",
+                value: "\(completed)",
                 isSelected: taskFilter == .completed,
                 color: .green
             ) {
                 HapticManager.shared.selection()
-                withAnimation(.spring(response: 0.3)) {
-                    taskFilter = .completed
-                }
+                withAnimation(.spring(response: 0.3)) { taskFilter = .completed }
             }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
     }
     
-    /// 时间筛选
     private var timeFilterView: some View {
         HStack(spacing: 8) {
             ForEach([TimeFilter.past, .today, .future], id: \.self) { filter in
@@ -277,20 +238,26 @@ struct HomeView: View {
         .padding(.bottom, 12)
     }
     
-    /// 任务列表
-    private var todoListView: some View {
+    private func todoListView(_ todos: [TodoItem]) -> some View {
         Group {
-            if filteredTodos.isEmpty {
+            if todos.isEmpty {
                 emptyStateView
             } else {
                 List {
-                    ForEach(filteredTodos) { todo in
+                    ForEach(todos) { todo in
                         TodoRow(todo: todo, groups: groups)
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
-                    .onDelete(perform: deleteTodos)
+                    .onDelete { offsets in
+                        HapticManager.shared.warning()
+                        for index in offsets {
+                            guard index < todos.count else { continue }
+                            todos[index].softDelete()
+                        }
+                        try? modelContext.save()
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -298,7 +265,6 @@ struct HomeView: View {
         }
     }
     
-    /// 空状态
     private var emptyStateView: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -330,12 +296,9 @@ struct HomeView: View {
     
     private var emptyStateMessage: String {
         switch taskFilter {
-        case .all:
-            return settings.localized(.noTasks)
-        case .active:
-            return settings.localized(.noActiveTasks)
-        case .completed:
-            return settings.localized(.noCompletedTasks)
+        case .all: return settings.localized(.noTasks)
+        case .active: return settings.localized(.noActiveTasks)
+        case .completed: return settings.localized(.noCompletedTasks)
         }
     }
     
@@ -348,25 +311,9 @@ struct HomeView: View {
             try? modelContext.save()
         }
     }
-    
-    private func deleteTodos(at offsets: IndexSet) {
-        HapticManager.shared.warning()
-        let todosToDelete = offsets.compactMap { index -> TodoItem? in
-            guard index < filteredTodos.count else { return nil }
-            return filteredTodos[index]
-        }
-        for todo in todosToDelete {
-            todo.softDelete()
-        }
-        try? modelContext.save()
-    }
-    
-    private func refreshData() {
-        // 触发视图刷新
-    }
 }
 
-// MARK: - 统计卡片组件
+// MARK: - StatCard
 struct StatCard: View {
     let title: String
     let value: String
@@ -401,7 +348,7 @@ struct StatCard: View {
     }
 }
 
-// MARK: - 时间筛选按钮
+// MARK: - TimeFilterButton
 struct TimeFilterButton: View {
     let filter: TimeFilter
     let isSelected: Bool

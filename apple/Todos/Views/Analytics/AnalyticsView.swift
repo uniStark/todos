@@ -3,13 +3,13 @@
 //  Todos
 //
 //  数据统计页面
+//  Author: Adrian Stark
 //
 
 import SwiftUI
 import SwiftData
 import Charts
 
-/// 时间范围
 enum TimeRange: String, CaseIterable {
     case week = "7d"
     case month = "30d"
@@ -25,10 +25,16 @@ enum TimeRange: String, CaseIterable {
         case (.all, .en): return "All Time"
         }
     }
+    
+    var dayCount: Int {
+        switch self {
+        case .week: return 7
+        case .month, .all: return 30
+        }
+    }
 }
 
 struct AnalyticsView: View {
-    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var settings: SettingsManager
     
     @Query(sort: \TodoItem.createdAt, order: .reverse)
@@ -40,81 +46,97 @@ struct AnalyticsView: View {
     
     @State private var timeRange: TimeRange = .week
     
-    // 计算属性
-    private var totalCreated: Int {
-        filteredTodos.count
-    }
-    
-    private var totalCompleted: Int {
-        filteredTodos.filter { $0.completed }.count
-    }
-    
-    private var completionRate: Double {
-        guard totalCreated > 0 else { return 0 }
-        return Double(totalCompleted) / Double(totalCreated) * 100
-    }
-    
-    private var filteredTodos: [TodoItem] {
+    // 单次遍历计算所有统计数据
+    private var analyticsData: AnalyticsData {
         let calendar = Calendar.current
         let now = Date()
+        let days = timeRange.dayCount
+        let rangeStart: Date?
         
         switch timeRange {
         case .week:
-            let startDate = calendar.date(byAdding: .day, value: -7, to: now)!
-            return todos.filter { $0.createdAt >= startDate }
+            rangeStart = calendar.date(byAdding: .day, value: -7, to: now)
         case .month:
-            let startDate = calendar.date(byAdding: .day, value: -30, to: now)!
-            return todos.filter { $0.createdAt >= startDate }
+            rangeStart = calendar.date(byAdding: .day, value: -30, to: now)
         case .all:
-            return Array(todos)
-        }
-    }
-    
-    private var dailyData: [DailyStats] {
-        let calendar = Calendar.current
-        let now = Date()
-        
-        let days: Int
-        switch timeRange {
-        case .week: days = 7
-        case .month: days = 30
-        case .all: days = 30 // 全部模式也只显示30天图表
+            rangeStart = nil
         }
         
-        var result: [DailyStats] = []
+        // 预计算日期桶
+        var createdBuckets = [Int: Int]()
+        var completedBuckets = [Int: Int]()
+        
+        var totalInRange = 0
+        var completedInRange = 0
+        var recentlyCompleted: [TodoItem] = []
+        
+        let todayStart = calendar.startOfDay(for: now)
+        
+        for todo in todos {
+            let inRange = rangeStart == nil || todo.createdAt >= rangeStart!
+            
+            if inRange {
+                totalInRange += 1
+                if todo.completed { completedInRange += 1 }
+            }
+            
+            // 按天分桶（创建）
+            let dayOffset = calendar.dateComponents([.day], from: todayStart, to: calendar.startOfDay(for: todo.createdAt)).day ?? 0
+            if dayOffset >= -days + 1 && dayOffset <= 0 {
+                createdBuckets[dayOffset, default: 0] += 1
+            }
+            
+            // 按天分桶（完成）
+            if let completedAt = todo.completedAt {
+                let completedOffset = calendar.dateComponents([.day], from: todayStart, to: calendar.startOfDay(for: completedAt)).day ?? 0
+                if completedOffset >= -days + 1 && completedOffset <= 0 {
+                    completedBuckets[completedOffset, default: 0] += 1
+                }
+                
+                if inRange && todo.completed {
+                    recentlyCompleted.append(todo)
+                }
+            }
+        }
+        
+        // 构建日线数据
+        var dailyStats: [DailyStats] = []
+        dailyStats.reserveCapacity(days)
         
         for i in (0..<days).reversed() {
-            guard let date = calendar.date(byAdding: .day, value: -i, to: now) else { continue }
-            let startOfDay = calendar.startOfDay(for: date)
-            let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
-            
-            let created = todos.filter { $0.createdAt >= startOfDay && $0.createdAt < endOfDay }.count
-            let completed = todos.filter {
-                guard let completedAt = $0.completedAt else { return false }
-                return completedAt >= startOfDay && completedAt < endOfDay
-            }.count
-            
-            result.append(DailyStats(date: date, created: created, completed: completed))
+            let offset = -i
+            let date = calendar.date(byAdding: .day, value: offset, to: todayStart)!
+            dailyStats.append(DailyStats(
+                date: date,
+                created: createdBuckets[offset] ?? 0,
+                completed: completedBuckets[offset] ?? 0
+            ))
         }
         
-        return result
+        recentlyCompleted.sort { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+        let topCompleted = Array(recentlyCompleted.prefix(10))
+        
+        let rate = totalInRange > 0 ? Double(completedInRange) / Double(totalInRange) * 100 : 0
+        
+        return AnalyticsData(
+            totalCreated: totalInRange,
+            totalCompleted: completedInRange,
+            completionRate: rate,
+            dailyStats: dailyStats,
+            recentlyCompleted: topCompleted
+        )
     }
     
     var body: some View {
+        let data = analyticsData
+        
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // 时间范围选择
                     timeRangePicker
-                    
-                    // KPI 卡片
-                    kpiCards
-                    
-                    // 每日动态图表
-                    dailyActivityChart
-                    
-                    // 任务时间轴
-                    taskTimeline
+                    kpiCards(data)
+                    dailyActivityChart(data.dailyStats)
+                    taskTimeline(data.recentlyCompleted)
                 }
                 .padding()
             }
@@ -125,7 +147,6 @@ struct AnalyticsView: View {
     
     // MARK: - 子视图
     
-    /// 时间范围选择器
     private var timeRangePicker: some View {
         Picker("", selection: $timeRange) {
             ForEach(TimeRange.allCases, id: \.self) { range in
@@ -138,40 +159,37 @@ struct AnalyticsView: View {
         }
     }
     
-    /// KPI 卡片
-    private var kpiCards: some View {
+    private func kpiCards(_ data: AnalyticsData) -> some View {
         HStack(spacing: 12) {
             KPICard(
                 title: settings.localized(.totalCreated),
-                value: "\(totalCreated)",
+                value: "\(data.totalCreated)",
                 icon: "doc.text",
                 color: .blue
             )
             
             KPICard(
                 title: settings.localized(.totalCompleted),
-                value: "\(totalCompleted)",
+                value: "\(data.totalCompleted)",
                 icon: "checkmark.circle",
                 color: .green
             )
             
             KPICard(
                 title: settings.localized(.completionRate),
-                value: String(format: "%.0f%%", completionRate),
+                value: String(format: "%.0f%%", data.completionRate),
                 icon: "chart.pie",
                 color: .purple
             )
         }
     }
     
-    /// 每日动态图表
-    private var dailyActivityChart: some View {
+    private func dailyActivityChart(_ dailyData: [DailyStats]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(settings.localized(.dailyActivity))
                 .font(.headline)
             
             Chart(dailyData) { item in
-                // 创建的任务 - 面积
                 AreaMark(
                     x: .value("Date", item.date, unit: .day),
                     y: .value("Count", item.created)
@@ -179,7 +197,6 @@ struct AnalyticsView: View {
                 .foregroundStyle(by: .value("Type", settings.localized(.created)))
                 .interpolationMethod(.catmullRom)
                 
-                // 创建的任务 - 折线
                 LineMark(
                     x: .value("Date", item.date, unit: .day),
                     y: .value("Count", item.created)
@@ -189,7 +206,6 @@ struct AnalyticsView: View {
                 .symbol(Circle())
                 .lineStyle(StrokeStyle(lineWidth: 2))
                 
-                // 完成的任务 - 面积
                 AreaMark(
                     x: .value("Date", item.date, unit: .day),
                     y: .value("Count", item.completed)
@@ -197,7 +213,6 @@ struct AnalyticsView: View {
                 .foregroundStyle(by: .value("Type", settings.localized(.completedLabel)))
                 .interpolationMethod(.catmullRom)
                 
-                // 完成的任务 - 折线
                 LineMark(
                     x: .value("Date", item.date, unit: .day),
                     y: .value("Count", item.completed)
@@ -225,16 +240,10 @@ struct AnalyticsView: View {
         }
     }
     
-    /// 任务时间轴
-    private var taskTimeline: some View {
+    private func taskTimeline(_ completedTodos: [TodoItem]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(settings.language == .zh ? "近期完成" : "Recently Completed")
                 .font(.headline)
-            
-            let completedTodos = filteredTodos
-                .filter { $0.completed }
-                .sorted { ($0.completedAt ?? Date.distantPast) > ($1.completedAt ?? Date.distantPast) }
-                .prefix(10)
             
             if completedTodos.isEmpty {
                 Text(settings.localized(.noCompletedTasks))
@@ -243,7 +252,7 @@ struct AnalyticsView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
             } else {
-                ForEach(Array(completedTodos)) { todo in
+                ForEach(completedTodos) { todo in
                     TimelineRow(todo: todo, settings: settings)
                 }
             }
@@ -255,11 +264,21 @@ struct AnalyticsView: View {
 }
 
 // MARK: - 数据模型
+
+private struct AnalyticsData {
+    let totalCreated: Int
+    let totalCompleted: Int
+    let completionRate: Double
+    let dailyStats: [DailyStats]
+    let recentlyCompleted: [TodoItem]
+}
+
 struct DailyStats: Identifiable {
-    let id = UUID()
     let date: Date
     let created: Int
     let completed: Int
+    
+    var id: Date { date }
 }
 
 // MARK: - KPI 卡片
@@ -308,12 +327,10 @@ struct TimelineRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // 完成指示器
             Circle()
                 .fill(.green)
                 .frame(width: 10, height: 10)
             
-            // 任务信息
             VStack(alignment: .leading, spacing: 4) {
                 Text(todo.text)
                     .font(.subheadline)
@@ -328,7 +345,6 @@ struct TimelineRow: View {
             
             Spacer()
             
-            // 耗时
             Text(daysToComplete)
                 .font(.caption)
                 .fontWeight(.medium)

@@ -171,45 +171,41 @@ struct AnalyticsView: View {
                 .font(.headline)
             
             Chart(dailyData) { item in
-                // 创建的任务
+                // 创建的任务 - 面积
+                AreaMark(
+                    x: .value("Date", item.date, unit: .day),
+                    y: .value("Count", item.created)
+                )
+                .foregroundStyle(by: .value("Type", settings.localized(.created)))
+                .interpolationMethod(.catmullRom)
+                
+                // 创建的任务 - 折线
                 LineMark(
                     x: .value("Date", item.date, unit: .day),
                     y: .value("Count", item.created)
                 )
                 .foregroundStyle(by: .value("Type", settings.localized(.created)))
+                .interpolationMethod(.catmullRom)
                 .symbol(Circle())
+                .lineStyle(StrokeStyle(lineWidth: 2))
                 
+                // 完成的任务 - 面积
                 AreaMark(
                     x: .value("Date", item.date, unit: .day),
-                    y: .value("Count", item.created)
+                    y: .value("Count", item.completed)
                 )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [.blue.opacity(0.3), .blue.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(by: .value("Type", settings.localized(.completedLabel)))
+                .interpolationMethod(.catmullRom)
                 
-                // 完成的任务
+                // 完成的任务 - 折线
                 LineMark(
                     x: .value("Date", item.date, unit: .day),
                     y: .value("Count", item.completed)
                 )
                 .foregroundStyle(by: .value("Type", settings.localized(.completedLabel)))
+                .interpolationMethod(.catmullRom)
                 .symbol(Circle())
-                
-                AreaMark(
-                    x: .value("Date", item.date, unit: .day),
-                    y: .value("Count", item.completed)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [.green.opacity(0.3), .green.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .lineStyle(StrokeStyle(lineWidth: 2))
             }
             .chartForegroundStyleScale([
                 settings.localized(.created): .blue,

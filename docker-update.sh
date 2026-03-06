@@ -2,21 +2,26 @@
 
 # STARK Todo List - Docker 快速更新脚本
 # 用于快速停止、重新构建并启动 Docker 容器
+# Author: Adrian Stark
 
 set -e
 
-# 颜色定义
+# 颜色
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # 默认配置
 USE_CACHE=true
 PULL_CODE=true
 SHOW_LOGS=false
+GIT_REMOTE="${GIT_REMOTE:-cnb}"
+GIT_BRANCH="${GIT_BRANCH:-main}"
+CNB_URL="${CNB_URL:-https://cnb.cool/stark.inc/todos.git}"
+REMOTE_BRANCH="${GIT_REMOTE}/${GIT_BRANCH}"
 
 # 帮助信息
 show_help() {
@@ -31,10 +36,14 @@ show_help() {
     echo "  -h, --help       显示帮助信息"
     echo ""
     echo "示例:"
-    echo "  ./docker-update.sh          # 默认：拉取代码 + 使用缓存构建"
+    echo "  ./docker-update.sh          # 默认：拉取 cnb/main + 使用缓存构建"
     echo "  ./docker-update.sh -f       # 完全重建（不使用缓存）"
     echo "  ./docker-update.sh -q       # 快速模式（跳过 git pull）"
     echo "  ./docker-update.sh -q -l    # 快速模式 + 显示日志"
+    echo ""
+    echo "Git 默认: 远程 ${CYAN}cnb${NC}，分支 ${CYAN}main${NC}。可通过环境变量覆盖:"
+    echo "  GIT_REMOTE=cnb GIT_BRANCH=main ./docker-update.sh"
+    echo "  CNB_URL 默认: ${CYAN}https://cnb.cool/stark.inc/todos.git${NC}（可覆盖）"
     echo ""
 }
 
@@ -71,34 +80,34 @@ echo -e "${CYAN}   🔄 STARK Todo List - Docker 更新${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# 显示当前配置
-echo -e "${BLUE}📋 更新配置:${NC}"
-if [ "$PULL_CODE" = true ]; then
-    echo -e "   • Git Pull: ${GREEN}是${NC}"
-else
-    echo -e "   • Git Pull: ${YELLOW}跳过${NC}"
-fi
-if [ "$USE_CACHE" = true ]; then
-    echo -e "   • 构建缓存: ${GREEN}启用${NC} (快速)"
-else
-    echo -e "   • 构建缓存: ${YELLOW}禁用${NC} (完全重建)"
-fi
+# 显示配置
+echo -e "${BLUE}📋 配置${NC}  Git: $([ "$PULL_CODE" = true ] && echo -e "${GREEN}拉取 ${REMOTE_BRANCH}${NC}" || echo -e "${YELLOW}跳过${NC}")  缓存: $([ "$USE_CACHE" = true ] && echo -e "${GREEN}开${NC}" || echo -e "${YELLOW}关${NC}")"
 echo ""
 
 # 记录开始时间
 START_TIME=$(date +%s)
 
-# 1. 拉取最新代码
+# 1. 拉取最新代码（默认 cnb/main）
 if [ "$PULL_CODE" = true ] && [ -d ".git" ]; then
-    echo -e "${BLUE}📥 正在获取远程最新代码...${NC}"
-    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    echo -e "   当前分支: ${CYAN}$CURRENT_BRANCH${NC}"
-    
-    if git pull private "$CURRENT_BRANCH" 2>&1; then
-        echo -e "${GREEN}   ✓ 代码已更新${NC}"
+    if ! git remote get-url "$GIT_REMOTE" &>/dev/null; then
+        git remote add "$GIT_REMOTE" "$CNB_URL"
+        echo -e "${BLUE}📥 已添加远程 ${GIT_REMOTE}${NC}"
+    elif [ "$(git remote get-url "$GIT_REMOTE" 2>/dev/null)" != "$CNB_URL" ]; then
+        git remote set-url "$GIT_REMOTE" "$CNB_URL"
+        echo -e "${BLUE}📥 已更新远程 ${GIT_REMOTE} 地址${NC}"
+    fi
+    echo -e "${BLUE}📥 获取 ${REMOTE_BRANCH}...${NC}"
+    current=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    [ -n "$current" ] && echo -e "   当前: ${CYAN}${current}${NC} → ${CYAN}${REMOTE_BRANCH}${NC}"
+    if ! git fetch "$GIT_REMOTE" 2>&1; then
+        echo -e "${RED}   ✗ fetch 失败，请检查 'git remote -v'${NC}"
+        exit 1
+    fi
+    if git rev-parse --verify "${REMOTE_BRANCH}" &>/dev/null; then
+        git checkout -B "$GIT_BRANCH" "${REMOTE_BRANCH}" 2>&1
+        echo -e "${GREEN}   ✓ 已对齐 ${REMOTE_BRANCH}${NC}"
     else
-        echo -e "${RED}   ✗ 代码拉取失败！${NC}"
-        echo -e "${YELLOW}   💡 提示: 运行 'git reset --hard private/$CURRENT_BRANCH' 强制覆盖本地更改${NC}"
+        echo -e "${RED}   ✗ 远程分支 ${REMOTE_BRANCH} 不存在${NC}"
         exit 1
     fi
     echo ""
@@ -113,25 +122,15 @@ echo ""
 
 # 3. 构建镜像
 echo -e "${BLUE}🏗️  构建 Docker 镜像...${NC}"
-if [ "$USE_CACHE" = true ]; then
-    # 使用缓存构建（快速）
-    if docker compose build 2>&1 | while read line; do echo -e "   $line"; done; then
-        echo -e "${GREEN}   ✓ 镜像构建成功${NC}"
-    else
-        echo -e "${RED}   ✗ 镜像构建失败！${NC}"
-        exit 1
-    fi
-else
-    # 不使用缓存（完全重建）
-    echo -e "${YELLOW}   (完全重建模式，可能需要几分钟...)${NC}"
+if [ "$USE_CACHE" = false ]; then
+    echo -e "${YELLOW}   (完全重建，可能需数分钟)${NC}"
     docker compose down --rmi local 2>/dev/null || true
-    if docker compose build --no-cache 2>&1 | while read line; do echo -e "   $line"; done; then
-        echo -e "${GREEN}   ✓ 镜像构建成功${NC}"
-    else
-        echo -e "${RED}   ✗ 镜像构建失败！${NC}"
-        exit 1
-    fi
 fi
+build_opts=()
+[ "$USE_CACHE" = false ] && build_opts=(--no-cache)
+docker compose build "${build_opts[@]}" 2>&1 | sed 's/^/   /'
+[ "${PIPESTATUS[0]}" -ne 0 ] && { echo -e "${RED}   ✗ 镜像构建失败${NC}"; exit 1; }
+echo -e "${GREEN}   ✓ 镜像构建成功${NC}"
 echo ""
 
 # 4. 启动新容器
@@ -140,46 +139,27 @@ docker compose up -d --force-recreate
 echo -e "${GREEN}   ✓ 容器已启动${NC}"
 echo ""
 
-# 5. 验证数据持久化
-echo -e "${BLUE}📊 验证数据持久化...${NC}"
-sleep 2  # 等待容器完全启动
-CONTAINER_ID=$(docker compose ps -q app 2>/dev/null)
-if [ -n "$CONTAINER_ID" ]; then
-    # 检查 todos.json
-    TODOS_COUNT=$(docker exec "$CONTAINER_ID" sh -c 'cat /app/data/todos.json 2>/dev/null | grep -o "\"id\"" | wc -l' 2>/dev/null || echo "0")
-    # 检查 stats.json
-    STATS=$(docker exec "$CONTAINER_ID" sh -c 'cat /app/data/stats.json 2>/dev/null' 2>/dev/null || echo '{"pv":0,"uv":0}')
-    PV=$(echo "$STATS" | grep -o '"pv":[0-9]*' | grep -o '[0-9]*' || echo "0")
-    UV=$(echo "$STATS" | grep -o '"uv":[0-9]*' | grep -o '[0-9]*' || echo "0")
-    
-    echo -e "${GREEN}   ✓ 数据卷挂载正常${NC}"
-    echo -e "   • Todos 数量: ${CYAN}${TODOS_COUNT}${NC}"
-    echo -e "   • 访问量 (PV): ${CYAN}${PV}${NC}"
-    echo -e "   • 访客数 (UV): ${CYAN}${UV}${NC}"
+# 5. 验证数据
+echo -e "${BLUE}📊 验证数据...${NC}"
+sleep 2
+cid=$(docker compose ps -q app 2>/dev/null)
+if [ -n "$cid" ]; then
+    todos_count=$(docker exec "$cid" sh -c 'grep -o "\"id\"" /app/data/todos.json 2>/dev/null | wc -l' 2>/dev/null || echo "0")
+    stats=$(docker exec "$cid" cat /app/data/stats.json 2>/dev/null || echo '{"pv":0,"uv":0}')
+    pv=$(echo "$stats" | grep -Eo '"pv":[0-9]+' | grep -Eo '[0-9]+' || echo "0")
+    uv=$(echo "$stats" | grep -Eo '"uv":[0-9]+' | grep -Eo '[0-9]+' || echo "0")
+    echo -e "${GREEN}   ✓ 数据卷正常${NC}  Todos: ${CYAN}${todos_count}${NC}  PV: ${CYAN}${pv}${NC}  UV: ${CYAN}${uv}${NC}"
 else
-    echo -e "${YELLOW}   ⚠ 无法获取容器信息，请手动验证数据${NC}"
+    echo -e "${YELLOW}   ⚠ 未获取到 app 容器${NC}"
 fi
 echo ""
 
-# 6. 清理悬空镜像（静默执行）
-docker image prune -f > /dev/null 2>&1 || true
+docker image prune -f &>/dev/null || true
 
-# 计算耗时
-END_TIME=$(date +%s)
-DURATION=$((END_TIME - START_TIME))
-
+duration=$(($(date +%s) - START_TIME))
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}   ✅ 更新完成！${NC}"
+echo -e "${GREEN}   ✅ 完成${NC}  ${CYAN}http://localhost:4000${NC}  耗时 ${YELLOW}${duration}s${NC}  卷 ${CYAN}todos-data${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "   📍 访问地址: ${CYAN}http://localhost:4000${NC}"
-echo -e "   ⏱️  总耗时: ${YELLOW}${DURATION}秒${NC}"
-echo -e "   💾 数据卷: ${CYAN}todos-data${NC} (todos.json + stats.json)"
-echo ""
 
-# 显示日志
-if [ "$SHOW_LOGS" = true ]; then
-    echo -e "${BLUE}📋 显示容器日志 (Ctrl+C 退出)...${NC}"
-    echo ""
-    docker compose logs -f --tail 50
-fi
+[ "$SHOW_LOGS" = true ] && { echo -e "${BLUE}📋 日志 (Ctrl+C 退出)${NC}"; echo ""; docker compose logs -f --tail 50; }

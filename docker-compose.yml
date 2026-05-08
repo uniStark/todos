@@ -13,7 +13,7 @@ services:
       # 设置访问密码（可自定义，默认为 stark123）
       - AUTH_PASSWORD=${AUTH_PASSWORD:-stark123}
       # AI 大模型配置 (SiliconFlow API)
-      - AI_API_KEY=${AI_API_KEY:-***REMOVED-API-KEY***}
+      - AI_API_KEY=${AI_API_KEY:?AI_API_KEY required, set in .env or shell}
       - AI_BASE_URL=${AI_BASE_URL:-https://api.siliconflow.cn/v1}
       - AI_MODEL_GLM4=${AI_MODEL_GLM4:-zai-org/GLM-4.6}
       - AI_MODEL_DEEPSEEK=${AI_MODEL_DEEPSEEK:-deepseek-ai/DeepSeek-V3.1-Terminus}

@@ -9,7 +9,7 @@ const CHAT_FILE = path.join(DATA_DIR, 'chat-history.json');
 // 从环境变量获取 AI 配置
 export const getAIConfig = (): AIConfig => {
   return {
-    apiKey: process.env.AI_API_KEY || '***REMOVED-API-KEY***',
+    apiKey: process.env.AI_API_KEY || '',
     baseUrl: process.env.AI_BASE_URL || 'https://api.siliconflow.cn/v1',
     models: {
       glm4: process.env.AI_MODEL_GLM4 || 'zai-org/GLM-4.6',

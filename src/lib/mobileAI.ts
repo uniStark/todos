@@ -6,7 +6,7 @@ import { Preferences } from '@capacitor/preferences';
 
 // AI 配置
 const AI_CONFIG = {
-  apiKey: '***REMOVED-API-KEY***',
+  apiKey: '', // TODO: load from user settings via Preferences
   baseUrl: 'https://api.siliconflow.cn/v1',
   models: {
     glm4: 'zai-org/GLM-4.6',

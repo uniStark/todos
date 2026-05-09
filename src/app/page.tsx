@@ -54,6 +54,13 @@ async function ensureOk(response: Response, fallbackMessage: string): Promise<vo
   await readJsonOrThrow<unknown>(response, fallbackMessage);
 }
 
+function resizeTextarea(textarea: HTMLTextAreaElement | null) {
+  if (!textarea) return;
+
+  textarea.style.height = 'auto';
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
 export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
@@ -89,6 +96,17 @@ export default function Home() {
   useEffect(() => {
     setIsNativeApp(isMobileApp());
   }, []);
+
+  useEffect(() => {
+    const textarea = document.querySelector<HTMLTextAreaElement>(`textarea[data-edit-id="${editingId ?? ''}"]`);
+    resizeTextarea(textarea);
+  }, [editingId, editText]);
+
+  useEffect(() => {
+    document
+      .querySelectorAll<HTMLTextAreaElement>('textarea[data-auto-resize="todo-input"]')
+      .forEach(resizeTextarea);
+  }, [inputValue]);
 
   const fetchTodos = useCallback(async () => {
     setIsLoading(true);
@@ -422,6 +440,10 @@ export default function Home() {
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return settings.language === 'zh' ? '时间未知' : 'Unknown time';
+    }
+
     try {
       return date.toLocaleString(settings.language === 'zh' ? 'zh-CN' : 'en-US', {
         month: 'numeric',
@@ -442,6 +464,31 @@ export default function Home() {
 
   // 格式化截止日期（支持时间）
   const formatDueDate = (dueDate: string): string => {
+    const datePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/;
+    if (!datePattern.test(dueDate)) {
+      const parsedDate = new Date(dueDate);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return dueDate;
+      }
+
+      try {
+        return parsedDate.toLocaleString(settings.language === 'zh' ? 'zh-CN' : 'en-US', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: settings.timezone,
+        });
+      } catch {
+        return parsedDate.toLocaleString(settings.language === 'zh' ? 'zh-CN' : 'en-US', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      }
+    }
+
     // 检查是否包含时间 (YYYY-MM-DDTHH:mm)
     if (dueDate.includes('T')) {
       const [datePart, timePart] = dueDate.split('T');
@@ -651,12 +698,16 @@ export default function Home() {
           >
             <form onSubmit={addTodo} className="space-y-2">
               <div className="flex gap-2 p-1">
-                <input
-                  type="text"
+                <textarea
+                  data-auto-resize="todo-input"
                   value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  onChange={(e) => {
+                    setInputValue(e.target.value);
+                    resizeTextarea(e.currentTarget);
+                  }}
                   placeholder={t.addTaskPlaceholder}
-                  className="flex-1 bg-transparent border-none rounded-2xl px-5 py-4 text-base sm:text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all"
+                  rows={1}
+                  className="flex-1 min-h-[56px] max-h-40 resize-none overflow-hidden bg-transparent border-none rounded-2xl px-5 py-4 text-base sm:text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all"
                 />
                 <button
                   type="submit"
@@ -882,16 +933,20 @@ export default function Home() {
                           {editingId === todo.id ? (
                             // 编辑模式
                             <div className="flex items-center gap-2">
-                              <input
-                                type="text"
+                              <textarea
+                                data-edit-id={todo.id}
                                 value={editText}
-                                onChange={(e) => setEditText(e.target.value)}
+                                onChange={(e) => {
+                                  setEditText(e.target.value);
+                                  resizeTextarea(e.currentTarget);
+                                }}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') saveEdit(todo.id);
+                                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveEdit(todo.id);
                                   if (e.key === 'Escape') cancelEdit();
                                 }}
                                 autoFocus
-                                className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3 py-1.5 text-base sm:text-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                rows={1}
+                                className="flex-1 min-h-[40px] max-h-48 resize-none overflow-hidden bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3 py-2 text-base sm:text-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                               />
                               <motion.button
                                 whileTap={{ scale: 0.9 }}
@@ -903,9 +958,9 @@ export default function Home() {
                             </div>
                           ) : (
                             // 显示模式
-                            <div onClick={() => toggleTodo(todo.id, todo.completed)}>
+                            <div>
                               <p
-                                className={`text-base sm:text-xl font-semibold mb-0.5 transition-all duration-500 break-words ${
+                                className={`text-base sm:text-xl font-semibold mb-0.5 transition-all duration-500 break-words whitespace-pre-wrap ${
                                   todo.completed
                                     ? 'line-through text-slate-400 dark:text-slate-500 italic'
                                     : 'text-slate-900 dark:text-white'
@@ -913,16 +968,56 @@ export default function Home() {
                               >
                                 {todo.text}
                               </p>
-                              <div className="flex items-center gap-3 text-[8px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
-                                <span className="flex items-center gap-1">
-                                  <Calendar size={isMobile ? 10 : 12} strokeWidth={2.5} />
-                                  {formatDate(todo.createdAt)}
-                                </span>
-                                {todo.dueDate && (
-                                  <span className="flex items-center gap-1 text-orange-500">
-                                    <Clock size={isMobile ? 10 : 12} strokeWidth={2.5} />
-                                    {formatDueDate(todo.dueDate)}
+                              <div className="flex items-center justify-between gap-3 text-[8px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
+                                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar size={isMobile ? 10 : 12} strokeWidth={2.5} />
+                                    {formatDate(todo.createdAt)}
                                   </span>
+                                  {todo.dueDate && (
+                                    <span className="flex items-center gap-1 text-orange-500">
+                                      <Clock size={isMobile ? 10 : 12} strokeWidth={2.5} />
+                                      {formatDueDate(todo.dueDate)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {isMobile && editingId !== todo.id && (
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    <motion.button
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        hapticFeedback('light');
+                                        if (openMenuId === todo.id) {
+                                          setOpenMenuId(null);
+                                          setMenuPosition(null);
+                                        } else {
+                                          const rect = e.currentTarget.getBoundingClientRect();
+                                          setMenuPosition({
+                                            top: rect.bottom + 8,
+                                            right: window.innerWidth - rect.right
+                                          });
+                                          setOpenMenuId(todo.id);
+                                        }
+                                      }}
+                                      className="rounded-xl p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                                      aria-label={settings.language === 'zh' ? '更多操作' : 'More actions'}
+                                    >
+                                      <MoreVertical size={16} strokeWidth={2.5} />
+                                    </motion.button>
+                                    <motion.button
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteTodo(todo.id);
+                                      }}
+                                      className="rounded-xl p-1.5 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
+                                      aria-label={settings.language === 'zh' ? '删除任务' : 'Delete task'}
+                                    >
+                                      <Trash2 size={16} strokeWidth={2.5} />
+                                    </motion.button>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -931,7 +1026,7 @@ export default function Home() {
 
                         {/* 操作按钮 */}
                         {editingId !== todo.id && (
-                          <div className="flex items-center gap-0.5 sm:gap-1">
+                          <div className={`${isMobile ? 'hidden' : 'flex'} items-center gap-0.5 sm:gap-1`}>
                             {/* Mobile menu button */}
                             <motion.button
                               whileTap={{ scale: 0.9 }}
@@ -955,20 +1050,17 @@ export default function Home() {
                               <MoreVertical size={isMobile ? 16 : 18} strokeWidth={2.5} />
                             </motion.button>
 
-                            {/* Desktop only Pencil */}
-                            {!isMobile && (
-                              <motion.button
-                                whileHover={{ scale: 1.1, backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startEdit(todo.id, todo.text);
-                                }}
-                                className="p-3 rounded-2xl text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-all duration-300 cursor-pointer"
-                              >
-                                <Pencil size={18} strokeWidth={2.5} />
-                              </motion.button>
-                            )}
+                            <motion.button
+                              whileHover={{ scale: 1.1, backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEdit(todo.id, todo.text);
+                              }}
+                              className="p-3 rounded-2xl text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-all duration-300 cursor-pointer"
+                            >
+                              <Pencil size={18} strokeWidth={2.5} />
+                            </motion.button>
                             
                             <motion.button
                               whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
@@ -1000,7 +1092,7 @@ export default function Home() {
         className={`text-center ${isMobile ? 'pb-28' : 'pb-8'} pt-12`}
       >
         <a
-          href="https://github.com/uniStark/To-Do-List"
+          href="https://github.com/uniStark/Todos"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-slate-100/50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-700/30 backdrop-blur-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 cursor-pointer group"
@@ -1010,7 +1102,7 @@ export default function Home() {
           <Heart size={14} strokeWidth={2.5} className="text-red-400 group-hover:text-red-500 group-hover:scale-125 transition-all" />
         </a>
         <p className="mt-4 text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-          Made with <span className="text-red-400">♥</span> by STARK
+          Made with <span className="text-red-400">♥</span> by Adrian Stark
         </p>
       </motion.footer>
 
@@ -1190,13 +1282,17 @@ export default function Home() {
 
               <form onSubmit={addTodo} className="space-y-6">
                 <div className="relative">
-                  <input
-                    type="text"
+                  <textarea
+                    data-auto-resize="todo-input"
                     value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      resizeTextarea(e.currentTarget);
+                    }}
                     placeholder={t.addTaskPlaceholder}
                     autoFocus
-                    className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-2xl px-6 py-5 text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none ring-1 ring-inset ring-slate-200 dark:ring-slate-700 transition-all"
+                    rows={1}
+                    className="w-full min-h-[64px] max-h-48 resize-none overflow-hidden bg-slate-100 dark:bg-slate-800 border-none rounded-2xl px-6 py-5 text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none ring-1 ring-inset ring-slate-200 dark:ring-slate-700 transition-all"
                   />
                 </div>
 

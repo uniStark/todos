@@ -14,6 +14,7 @@ COPY package.json pnpm-lock.yaml* ./
 # 只安装生产依赖
 RUN if [ -f pnpm-lock.yaml ]; then \
       corepack enable && \
+      corepack prepare pnpm@10.33.0 --activate && \
       pnpm config set registry https://registry.npmmirror.com && \
       pnpm config set fetch-timeout 600000 && \
       pnpm i --frozen-lockfile; \

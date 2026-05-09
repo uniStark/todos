@@ -6,6 +6,40 @@ import { ChatSession, ChatMessage, AIConfig, AIModelType, Todo, Group } from './
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
 const CHAT_FILE = path.join(DATA_DIR, 'chat-history.json');
 
+function ensureParentDir(filePath: string) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+function backupCorruptFile(filePath: string) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const backupPath = `${filePath}.corrupt.${Date.now()}`;
+  fs.copyFileSync(filePath, backupPath);
+  console.error(`[ChatStorage] Backed up corrupt JSON file to ${backupPath}`);
+}
+
+function writeJsonFile(filePath: string, value: unknown) {
+  ensureParentDir(filePath);
+  const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
+  fs.writeFileSync(tempPath, JSON.stringify(value, null, 2), 'utf-8');
+  fs.renameSync(tempPath, filePath);
+}
+
+function readChatSession(): ChatSession {
+  try {
+    return JSON.parse(fs.readFileSync(CHAT_FILE, 'utf-8')) as ChatSession;
+  } catch (error) {
+    backupCorruptFile(CHAT_FILE);
+    console.error(`[ChatStorage] Invalid chat JSON at ${CHAT_FILE}:`, error);
+    throw new Error(`[ChatStorage] Invalid chat JSON at ${CHAT_FILE}`);
+  }
+}
+
 // 从环境变量获取 AI 配置
 export const getAIConfig = (): AIConfig => {
   return {
@@ -38,10 +72,7 @@ export const getModelName = (modelType: AIModelType): string => {
 // 获取聊天历史
 export const getChatSession = (): ChatSession => {
   try {
-    const dir = path.dirname(CHAT_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureParentDir(CHAT_FILE);
 
     if (!fs.existsSync(CHAT_FILE)) {
       const initialSession: ChatSession = {
@@ -50,36 +81,29 @@ export const getChatSession = (): ChatSession => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      fs.writeFileSync(CHAT_FILE, JSON.stringify(initialSession, null, 2), 'utf-8');
+      writeJsonFile(CHAT_FILE, initialSession);
       console.log(`[ChatStorage] Created new chat session: ${CHAT_FILE}`);
       return initialSession;
     }
 
-    const data = fs.readFileSync(CHAT_FILE, 'utf-8');
-    const session = JSON.parse(data);
+    const session = readChatSession();
+    if (!Array.isArray(session.messages)) {
+      backupCorruptFile(CHAT_FILE);
+      throw new Error(`[ChatStorage] Chat JSON must include messages array: ${CHAT_FILE}`);
+    }
     console.log(`[ChatStorage] Loaded ${session.messages.length} messages from ${CHAT_FILE}`);
     return session;
   } catch (error) {
     console.error('[ChatStorage] Error reading chat session:', error);
-    return {
-      id: crypto.randomUUID(),
-      messages: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+    throw error;
   }
 };
 
 // 保存聊天历史
 export const saveChatSession = (session: ChatSession): void => {
   try {
-    const dir = path.dirname(CHAT_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
     session.updatedAt = Date.now();
-    fs.writeFileSync(CHAT_FILE, JSON.stringify(session, null, 2), 'utf-8');
+    writeJsonFile(CHAT_FILE, session);
     console.log(`[ChatStorage] Saved ${session.messages.length} messages to ${CHAT_FILE}`);
   } catch (error) {
     console.error('[ChatStorage] Error saving chat session:', error);

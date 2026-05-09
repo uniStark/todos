@@ -9,18 +9,41 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { translations } from '@/lib/translations';
 import dynamic from 'next/dynamic';
 
+async function readJsonOrThrow<T>(response: Response, fallbackMessage: string): Promise<T> {
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    // Keep status-based error when body is empty or malformed.
+  }
+
+  if (!response.ok) {
+    const message = typeof data === 'object' && data !== null && 'message' in data
+      ? String((data as { message?: unknown }).message)
+      : typeof data === 'object' && data !== null && 'error' in data
+        ? String((data as { error?: unknown }).error)
+        : fallbackMessage;
+    throw new Error(`${message} (${response.status})`);
+  }
+
+  return data as T;
+}
+
+function AnalyticsLoading() {
+  const { settings } = useSettings();
+  const t = translations[settings.language];
+
+  return (
+    <div className="h-96 flex flex-col items-center justify-center gap-4">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">{t.analyticsLoading}</p>
+    </div>
+  );
+}
+
 // 动态导入图表组件以支持 SSR
 const AnalyticsDashboard = dynamic(() => import('@/components/AnalyticsDashboard'), {
-  loading: () => {
-    const { settings } = useSettings();
-    const t = translations[settings.language];
-    return (
-      <div className="h-96 flex flex-col items-center justify-center gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
-        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">{t.analyticsLoading}</p>
-      </div>
-    );
-  },
+  loading: AnalyticsLoading,
   ssr: false
 });
 
@@ -39,8 +62,8 @@ export default function AnalyticsPage() {
           fetch('/api/todos'),
           fetch('/api/stats')
         ]);
-        const todosData = await todosRes.json();
-        const statsData = await statsRes.json();
+        const todosData = await readJsonOrThrow<Todo[]>(todosRes, 'Failed to fetch todos');
+        const statsData = await readJsonOrThrow<{ pv: number; uv: number }>(statsRes, 'Failed to fetch stats');
         setTodos(todosData);
         setSiteStats(statsData);
       } catch (error) {

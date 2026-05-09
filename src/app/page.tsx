@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useEffect, memo, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Todo, Group, Priority, DEFAULT_GROUP_ID } from '@/lib/types';
-import { Trash2, Plus, CheckCircle2, Circle, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, LogOut, Pencil, Check, X, Github, Heart, Code2, FolderPlus, Flag, ChevronDown, MoreVertical } from 'lucide-react';
+import { Trash2, Plus, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, Pencil, Check, X, Github, Heart, Code2, FolderPlus, Flag, ChevronDown, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { translations } from '@/lib/translations';
 import { isMobileApp } from '@/lib/platform';
-import { getMobileTodos, saveMobileTodos, getMobileGroups, saveMobileGroups } from '@/lib/mobileStorage';
+import { getMobileTodos, saveMobileTodos, getMobileGroups } from '@/lib/mobileStorage';
 
 // 动态导入 Logo 组件（非关键路径）
 const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
@@ -29,6 +29,30 @@ const VoiceButton = dynamic(() => import('@/components/VoiceButton'), {
   loading: () => null,
   ssr: false,
 });
+
+async function readJsonOrThrow<T>(response: Response, fallbackMessage: string): Promise<T> {
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    // Keep the original status-based error below when the body is empty or malformed.
+  }
+
+  if (!response.ok) {
+    const message = typeof data === 'object' && data !== null && 'message' in data
+      ? String((data as { message?: unknown }).message)
+      : typeof data === 'object' && data !== null && 'error' in data
+        ? String((data as { error?: unknown }).error)
+        : fallbackMessage;
+    throw new Error(`${message} (${response.status})`);
+  }
+
+  return data as T;
+}
+
+async function ensureOk(response: Response, fallbackMessage: string): Promise<void> {
+  await readJsonOrThrow<unknown>(response, fallbackMessage);
+}
 
 export default function Home() {
   const router = useRouter();
@@ -66,26 +90,6 @@ export default function Home() {
     setIsNativeApp(isMobileApp());
   }, []);
 
-  useEffect(() => {
-    fetchTodos();
-    fetchGroups();
-    
-    // Record PV/UV (only for web)
-    if (!isMobileApp()) {
-      fetch('/api/stats', { method: 'POST' }).catch(err => console.error('Failed to record stats:', err));
-    }
-    
-    // Detect mobile device
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768); // md breakpoint
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
   const fetchTodos = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -96,7 +100,7 @@ export default function Home() {
       } else {
         // Web 端使用 API
         const response = await fetch('/api/todos');
-        const data = await response.json();
+        const data = await readJsonOrThrow<Todo[]>(response, 'Failed to fetch todos');
         setTodos(data);
       }
     } catch (error) {
@@ -115,13 +119,28 @@ export default function Home() {
       } else {
         // Web 端使用 API
         const response = await fetch('/api/groups');
-        const data = await response.json();
+        const data = await readJsonOrThrow<Group[]>(response, 'Failed to fetch groups');
         setGroups(data);
       }
     } catch (error) {
       console.error('Failed to fetch groups:', error);
     }
   }, []);
+
+  useEffect(() => {
+    fetchTodos();
+    fetchGroups();
+
+    // Detect mobile device
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [fetchGroups, fetchTodos]);
 
   const addGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,7 +155,7 @@ export default function Home() {
         },
         body: JSON.stringify({ name: newGroupName.trim() }),
       });
-      const newGroup = await response.json();
+      const newGroup = await readJsonOrThrow<Group>(response, 'Failed to add group');
       setGroups([...groups, newGroup]);
       setNewGroupName('');
       setIsGroupModalOpen(false);
@@ -150,10 +169,11 @@ export default function Home() {
     if (id === DEFAULT_GROUP_ID || !isAuthenticated) return;
 
     try {
-      await fetch(`/api/groups?id=${id}`, { 
+      const response = await fetch(`/api/groups?id=${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
+      await ensureOk(response, 'Failed to delete group');
       setGroups(groups.filter(g => g.id !== id));
       if (selectedGroupId === id) setSelectedGroupId(DEFAULT_GROUP_ID);
       if (activeGroupId === id) setActiveGroupId('all');
@@ -211,7 +231,7 @@ export default function Home() {
           },
           body: JSON.stringify(requestBody),
         });
-        const newTodo = await response.json();
+        const newTodo = await readJsonOrThrow<Todo>(response, 'Failed to add todo');
         setTodos([...todos, newTodo]);
       }
       setInputValue('');
@@ -220,7 +240,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to add todo:', error);
     }
-  }, [inputValue, todos, isAuthenticated, requestAuth, selectedGroupId, selectedPriority, getAuthHeaders, settings.enableGroups, settings.enablePriority, isNativeApp]);
+  }, [inputValue, todos, isAuthenticated, requestAuth, selectedGroupId, selectedPriority, getAuthHeaders, settings.enableGroups, settings.enablePriority, isNativeApp, hapticFeedback]);
 
   const toggleTodo = useCallback(async (id: string, completed: boolean) => {
     // 检查权限（移动端跳过）
@@ -254,7 +274,7 @@ export default function Home() {
           },
           body: JSON.stringify({ id, completed: !completed }),
         });
-        const updatedTodo = await response.json();
+        const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to toggle todo');
         setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
       }
       hapticFeedback('light');
@@ -283,10 +303,11 @@ export default function Home() {
         }
       } else {
         // Web 端使用 API
-        await fetch(`/api/todos?id=${id}`, { 
+        const response = await fetch(`/api/todos?id=${id}`, {
           method: 'DELETE',
           headers: getAuthHeaders()
         });
+        await ensureOk(response, 'Failed to delete todo');
         setTodos(todos.filter((t) => t.id !== id));
       }
       hapticFeedback('heavy');
@@ -354,7 +375,7 @@ export default function Home() {
           },
           body: JSON.stringify(finalUpdates),
         });
-        const updatedTodo = await response.json();
+        const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to update todo');
         setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
       }
       if (id === editingId) cancelEdit();
@@ -385,11 +406,11 @@ export default function Home() {
       } else {
         // Web 端使用 API
         const todosResponse = await fetch('/api/todos');
-        const todosData = await todosResponse.json();
+        const todosData = await readJsonOrThrow<Todo[]>(todosResponse, 'Failed to refresh todos');
         setTodos(todosData.filter((t: Todo) => !t.deleted));
 
         const groupsResponse = await fetch('/api/groups');
-        const groupsData = await groupsResponse.json();
+        const groupsData = await readJsonOrThrow<Group[]>(groupsResponse, 'Failed to refresh groups');
         setGroups(groupsData);
       }
 
@@ -424,13 +445,13 @@ export default function Home() {
     // 检查是否包含时间 (YYYY-MM-DDTHH:mm)
     if (dueDate.includes('T')) {
       const [datePart, timePart] = dueDate.split('T');
-      const [year, month, day] = datePart.split('-');
+      const [, month, day] = datePart.split('-');
       return settings.language === 'zh' 
         ? `${parseInt(month)}月${parseInt(day)}日 ${timePart}`
         : `${month}/${day} ${timePart}`;
     }
     // 只有日期 (YYYY-MM-DD)
-    const [year, month, day] = dueDate.split('-');
+    const [, month, day] = dueDate.split('-');
     return settings.language === 'zh' 
       ? `${parseInt(month)}月${parseInt(day)}日`
       : `${month}/${day}`;

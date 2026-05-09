@@ -2,7 +2,7 @@
 
 # ✨ STARK Todo List
 
-<img src="https://img.shields.io/badge/Next.js-15.1.2-black?style=flat-square&logo=next.js" alt="Next.js">
+<img src="https://img.shields.io/badge/Next.js-15.5.18-black?style=flat-square&logo=next.js" alt="Next.js">
 <img src="https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react" alt="React">
 <img src="https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript" alt="TypeScript">
 <img src="https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind CSS">
@@ -77,8 +77,8 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/yourusername/stark-todo-list.git
-   cd stark-todo-list
+   git clone https://github.com/uniStark/Todos.git
+   cd Todos
    ```
 
 2. **安装依赖**
@@ -100,37 +100,13 @@
    http://localhost:3000
    ```
 
-### 方案二：使用管理脚本
+### 方案二：Docker 部署
 
-提供了便捷的 Shell 脚本用于轻松管理：
-
-```bash
-# 启动应用
-./run.sh start
-
-# 停止应用
-./run.sh stop
-
-# 重启并清理缓存
-./run.sh restart
-
-# 查看日志
-./run.sh logs
-
-# 检查状态
-./run.sh status
-```
-
-### 方案三：Docker 部署
-
-1. **使用 Docker 启动脚本（推荐）**
+1. **使用 Docker Compose 启动**
    ```bash
-   ./docker-start.sh
+   docker compose up -d --build
    ```
-   脚本会自动：
-   - 构建并启动 Docker 容器
-   - 自动显示后端日志
-   - 使用 Docker 卷进行数据持久化
+   Docker Compose 会构建应用、启动容器，并使用 Docker 卷持久化数据。
 
 2. **快速更新（重新构建并重启）**
    ```bash
@@ -143,7 +119,7 @@
    - 启动新容器
    - 自动显示日志
 
-3. **配置访问密码（可选）**
+3. **配置访问密码**
    ```bash
    # 通过环境变量设置自定义密码
    export AUTH_PASSWORD=your_custom_password
@@ -151,23 +127,22 @@
    # 或创建 .env 文件
    echo "AUTH_PASSWORD=your_custom_password" > .env
    ```
-   > 如未配置，默认密码为 `stark123`。
+   > Docker/生产环境中，受保护的写接口需要配置 `AUTH_PASSWORD`。如果留空，只读页面仍可访问，但新增、编辑、删除和 AI 操作会被禁用。
 
-4. **或手动使用 Docker Compose**
+4. **配置 AI 功能（可选）**
    ```bash
-   # 使用 Docker Compose 启动
-   docker compose up -d --build
-   
-   # 查看日志
-   docker compose logs -f
+   # 不配置时，AI 相关功能不可用，但基础 Todo 功能可正常使用
+   echo "AI_API_KEY=your_api_key" >> .env
+   echo "AI_BASE_URL=https://api.siliconflow.cn/v1" >> .env
    ```
+   > `AI_API_KEY` 仅用于 AI 功能，基础 Todo 使用不需要配置；即使留空，Docker Compose 配置也可正常解析。
 
 5. **访问应用**
    ```
-   http://localhost:4000
+   http://localhost:3002
    ```
 
-4. **管理命令**
+6. **管理命令**
    ```bash
    # 停止容器
    docker compose down
@@ -182,19 +157,19 @@
    ./docker-update.sh
    ```
 
-5. **数据持久化与安全更新**
+7. **数据持久化与安全更新**
    - 数据存储在名为 `todos-data` 的 Docker 卷中，持久化存储 `todos.json` 和 `stats.json`。
    - **重要提示**：在更新容器时，请务必使用 `./docker-update.sh`。不要手动运行 `docker compose down -v`，因为 `-v` 参数会永久删除您的所有数据卷。
    - 备份数据：
      ```bash
-     docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar czf /backup/todos-backup.tar.gz -C /data .
+     docker run --rm -v todos_web_todos-data:/data -v $(pwd):/backup alpine tar czf /backup/todos-backup.tar.gz -C /data .
      ```
    - 恢复数据：
      ```bash
-     docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar xzf /backup/todos-backup.tar.gz -C /data
+     docker run --rm -v todos_web_todos-data:/data -v $(pwd):/backup alpine tar xzf /backup/todos-backup.tar.gz -C /data
      ```
 
-6. **清理（会删除数据）**
+8. **清理（会删除数据）**
    ```bash
    docker compose down -v
    ```
@@ -202,7 +177,7 @@
 ## 📂 项目结构
 
 ```
-stark-todo-list/
+Todos/
 ├── src/
 │   ├── app/                    # Next.js App Router
 │   │   ├── api/               # API 路由
@@ -225,11 +200,11 @@ stark-todo-list/
 ├── public/                    # 静态资源
 ├── scripts/
 │   ├── generate-icons.js      # 图标生成脚本
-│   └── generate-mock-data.js  # 演示数据生成脚本
+│   ├── generate-mock-data.js  # 演示数据生成脚本
+│   └── build-mobile.mjs       # Capacitor 静态构建辅助脚本
 ├── docker-compose.yml         # Docker Compose 配置
 ├── Dockerfile                 # Docker 镜像配置
-├── run.sh                     # 管理脚本
-├── docker-start.sh            # Docker 启动脚本
+├── docker-update.sh           # Docker 重建/更新脚本
 ├── todos.json                 # 数据存储文件
 └── package.json               # 项目依赖
 ```
@@ -280,7 +255,7 @@ stark-todo-list/
 -H "Authorization: Bearer your_password"
 ```
 
-> 默认密码为 `stark123`。可通过 `AUTH_PASSWORD` 环境变量配置。
+> 开发环境的回退密码是 `stark123`。Docker/生产环境请配置 `AUTH_PASSWORD`；否则受保护的写接口会被禁用。
 
 ### 接口列表
 

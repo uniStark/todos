@@ -66,7 +66,7 @@ declare global {
 }
 
 export default function VoiceButton({ onRefreshTodos }: VoiceButtonProps) {
-  const { settings, updateSettings } = useSettings();
+  const { settings } = useSettings();
   const { triggerHaptic } = useHaptics();
   
   const [isListening, setIsListening] = useState(false);
@@ -75,7 +75,7 @@ export default function VoiceButton({ onRefreshTodos }: VoiceButtonProps) {
   const [interimTranscript, setInterimTranscript] = useState('');
   const [showChat, setShowChat] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [selectedModel, setSelectedModel] = useState<AIModelType>(settings.aiModel || 'deepseek_v3.1');
+  const selectedModel: AIModelType = settings.aiModel || 'deepseek_v3.1';
   const [error, setError] = useState<string | null>(null);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -158,7 +158,7 @@ export default function VoiceButton({ onRefreshTodos }: VoiceButtonProps) {
         if (isListeningRef.current) {
           try {
             recognition.start();
-          } catch (e) {
+          } catch {
             console.log('[VoiceButton] Could not restart recognition');
           }
         }
@@ -240,7 +240,7 @@ export default function VoiceButton({ onRefreshTodos }: VoiceButtonProps) {
     
     try {
       recognitionRef.current.stop();
-    } catch (e) {
+    } catch {
       console.log('[VoiceButton] Recognition already stopped');
     }
     
@@ -272,7 +272,7 @@ export default function VoiceButton({ onRefreshTodos }: VoiceButtonProps) {
     setTranscript('');
     
     try {
-      const { message, executionResult } = await sendMobileAIMessage(
+      const { executionResult } = await sendMobileAIMessage(
         finalText,
         selectedModel,
         {

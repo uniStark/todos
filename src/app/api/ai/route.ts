@@ -10,6 +10,7 @@ import {
   AIFeatureSettings,
 } from '@/lib/chatStorage';
 import { getTodos, saveTodos, getGroups, saveGroups } from '@/lib/storage';
+import { unauthorizedResponse, verifyApiKey } from '@/lib/serverAuth';
 import { ChatMessage, AIActions, AIExecutionResult, AIModelType, Todo, Group } from '@/lib/types';
 
 // 获取当前日期时间字符串（包含时分）
@@ -26,8 +27,12 @@ function getCurrentDateTimeString(): string {
 }
 
 // GET - 获取聊天历史和AI配置
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    if (!verifyApiKey(request)) {
+      return unauthorizedResponse();
+    }
+
     const session = getChatSession();
     const config = getAIConfig();
     return NextResponse.json({
@@ -46,6 +51,10 @@ export async function GET() {
 // POST - 发送消息给AI
 export async function POST(request: Request) {
   try {
+    if (!verifyApiKey(request)) {
+      return unauthorizedResponse();
+    }
+
     const { message, model, settings: featureSettings } = await request.json();
 
     if (!message) {
@@ -170,7 +179,11 @@ export async function POST(request: Request) {
       content: '抱歉，AI服务暂时不可用。请稍后再试。',
       timestamp: Date.now(),
     };
-    addMessage(errorMessage);
+    try {
+      addMessage(errorMessage);
+    } catch (storageError) {
+      console.error('[AI API POST] Failed to save error message:', storageError);
+    }
 
     return NextResponse.json({
       message: errorMessage,
@@ -180,8 +193,12 @@ export async function POST(request: Request) {
 }
 
 // DELETE - 清除聊天历史
-export async function DELETE() {
+export async function DELETE(request: Request) {
   try {
+    if (!verifyApiKey(request)) {
+      return unauthorizedResponse();
+    }
+
     const session = clearChatSession();
     return NextResponse.json({ success: true, session });
   } catch (error) {
@@ -258,8 +275,8 @@ async function parseAndExecuteActions(
   }
 
   // 获取最新的数据
-  let todos = getTodos();
-  let groups = getGroups();
+  const todos = getTodos();
+  const groups = getGroups();
   // 创建映射时只考虑未删除的任务
   const todoMap = new Map(todos.filter(t => !t.deleted).map(t => [t.id, t]));
 

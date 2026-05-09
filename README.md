@@ -2,7 +2,7 @@
 
 # ✨ STARK Todo List
 
-<img src="https://img.shields.io/badge/Next.js-15.1.2-black?style=flat-square&logo=next.js" alt="Next.js">
+<img src="https://img.shields.io/badge/Next.js-15.5.18-black?style=flat-square&logo=next.js" alt="Next.js">
 <img src="https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react" alt="React">
 <img src="https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript" alt="TypeScript">
 <img src="https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind CSS">
@@ -77,8 +77,8 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/stark-todo-list.git
-   cd stark-todo-list
+   git clone https://github.com/uniStark/Todos.git
+   cd Todos
    ```
 
 2. **Install dependencies**
@@ -100,37 +100,13 @@
    http://localhost:3000
    ```
 
-### Option 2: Using Management Script
+### Option 2: Docker Deployment
 
-A convenient shell script is provided for easy management:
-
-```bash
-# Start the application
-./run.sh start
-
-# Stop the application
-./run.sh stop
-
-# Restart with cache cleanup
-./run.sh restart
-
-# View logs
-./run.sh logs
-
-# Check status
-./run.sh status
-```
-
-### Option 3: Docker Deployment
-
-1. **Using the Docker startup script (Recommended)**
+1. **Start with Docker Compose**
    ```bash
-   ./docker-start.sh
+   docker compose up -d --build
    ```
-   The script will:
-   - Build and start the Docker container
-   - Automatically display backend logs
-   - Use Docker volume for data persistence
+   Docker Compose builds the app, starts the container, and stores data in a persistent Docker volume.
 
 2. **Quick update (rebuild and restart)**
    ```bash
@@ -143,7 +119,7 @@ A convenient shell script is provided for easy management:
    - Start the new container
    - Display logs automatically
 
-3. **Configure authentication password (optional)**
+3. **Configure authentication password**
    ```bash
    # Set custom password via environment variable
    export AUTH_PASSWORD=your_custom_password
@@ -151,23 +127,22 @@ A convenient shell script is provided for easy management:
    # Or create a .env file
    echo "AUTH_PASSWORD=your_custom_password" > .env
    ```
-   > Default password is `stark123` if not configured.
+   > In Docker/production, protected write APIs require `AUTH_PASSWORD`. If it is empty, read-only pages still load, but add/edit/delete and AI operations are disabled.
 
-4. **Or manually with Docker Compose**
+4. **Configure AI features (optional)**
    ```bash
-   # Start with Docker Compose
-   docker compose up -d --build
-   
-   # View logs
-   docker compose logs -f
+   # Leave unset to disable AI-backed features
+   echo "AI_API_KEY=your_api_key" >> .env
+   echo "AI_BASE_URL=https://api.siliconflow.cn/v1" >> .env
+   ```
+   > `AI_API_KEY` is optional for base Todo usage. If it is empty, AI-backed features may be unavailable, but Docker Compose configuration still works.
+
+5. **Access the application**
+   ```
+   http://localhost:3002
    ```
 
-3. **Access the application**
-   ```
-   http://localhost:4000
-   ```
-
-4. **Management commands**
+6. **Management commands**
    ```bash
    # Stop containers
    docker compose down
@@ -182,19 +157,19 @@ A convenient shell script is provided for easy management:
    ./docker-update.sh
    ```
 
-5. **Data Persistence & Safe Updates**
+7. **Data Persistence & Safe Updates**
    - Data is stored in a Docker volume named `todos-data`, which persists `todos.json` and `stats.json`.
    - **Important**: Always use `./docker-update.sh` for updates. Avoid running `docker compose down -v` manually, as the `-v` flag will permanently delete your data volumes.
    - To backup data:
      ```bash
-     docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar czf /backup/todos-backup.tar.gz -C /data .
+     docker run --rm -v todos_web_todos-data:/data -v $(pwd):/backup alpine tar czf /backup/todos-backup.tar.gz -C /data .
      ```
    - To restore data:
      ```bash
-     docker run --rm -v stark-todo-list_todos-data:/data -v $(pwd):/backup alpine tar xzf /backup/todos-backup.tar.gz -C /data
+     docker run --rm -v todos_web_todos-data:/data -v $(pwd):/backup alpine tar xzf /backup/todos-backup.tar.gz -C /data
      ```
 
-6. **Clean up (removes data)**
+8. **Clean up (removes data)**
    ```bash
    docker compose down -v
    ```
@@ -202,7 +177,7 @@ A convenient shell script is provided for easy management:
 ## 📂 Project Structure
 
 ```
-stark-todo-list/
+Todos/
 ├── src/
 │   ├── app/                    # Next.js App Router
 │   │   ├── api/               # API Routes
@@ -225,11 +200,11 @@ stark-todo-list/
 ├── public/                    # Static assets
 ├── scripts/
 │   ├── generate-icons.js      # Favicon generator
-│   └── generate-mock-data.js  # Demo data generator
+│   ├── generate-mock-data.js  # Demo data generator
+│   └── build-mobile.mjs       # Static Capacitor build helper
 ├── docker-compose.yml         # Docker Compose config
 ├── Dockerfile                 # Docker image config
-├── run.sh                     # Management script
-├── docker-start.sh            # Docker startup script
+├── docker-update.sh           # Docker rebuild/update script
 ├── todos.json                 # Data storage file
 └── package.json               # Project dependencies
 ```
@@ -280,7 +255,7 @@ Protected endpoints require authentication via API key in request headers:
 -H "Authorization: Bearer your_password"
 ```
 
-> Default password is `stark123`. Configure via `AUTH_PASSWORD` environment variable.
+> In development, the fallback password is `stark123`. In Docker/production, configure `AUTH_PASSWORD`; otherwise protected write APIs are disabled.
 
 ### Endpoints
 
@@ -392,7 +367,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Powered by [Next.js](https://nextjs.org/)
 - UI Design inspired by modern minimalism
-- Built with ❤️ by the STARK
+- Built with ❤️ by Adrian Stark
 
 ---
 
@@ -400,6 +375,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **[⬆ Back to Top](#-stark-todo-list)**
 
-Made with ❤️ by STARK | Powered by Next.js
+Made with ❤️ by Adrian Stark | Powered by Next.js
 
 </div>

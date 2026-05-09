@@ -33,9 +33,29 @@ interface AIChatProps {
   onRefreshTodos: () => void;
 }
 
+async function readJsonOrThrow<T>(response: Response, fallbackMessage: string): Promise<T> {
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    // Use status-based error below when the API does not return JSON.
+  }
+
+  if (!response.ok) {
+    const message = typeof data === 'object' && data !== null && 'message' in data
+      ? String((data as { message?: unknown }).message)
+      : typeof data === 'object' && data !== null && 'error' in data
+        ? String((data as { error?: unknown }).error)
+        : fallbackMessage;
+    throw new Error(`${message} (${response.status})`);
+  }
+
+  return data as T;
+}
+
 export default function AIChat({ onRefreshTodos }: AIChatProps) {
   const { settings, updateSettings } = useSettings();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, getAuthHeaders } = useAuth();
   
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -52,7 +72,7 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
     if (settings.aiModel && settings.aiModel !== selectedModel) {
       setSelectedModel(settings.aiModel);
     }
-  }, [settings.aiModel]);
+  }, [selectedModel, settings.aiModel]);
 
   // 切换模型时保存到 settings
   const handleModelChange = (model: AIModelType) => {
@@ -78,6 +98,8 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
       updated: '已更新',
       operationFailed: '操作失败',
       tasksCount: '项任务',
+      unauthorized: '认证已失效，请重新登录后再使用 AI。',
+      sendFailed: 'AI 请求失败，请稍后重试。',
     },
     en: {
       aiAssistant: 'AI Assistant',
@@ -94,6 +116,8 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
       updated: 'Updated',
       operationFailed: 'Operation failed',
       tasksCount: 'tasks',
+      unauthorized: 'Authentication expired. Please sign in again before using AI.',
+      sendFailed: 'AI request failed. Please try again later.',
     },
   };
 
@@ -102,8 +126,13 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
   // 加载聊天历史
   const loadChatHistory = useCallback(async () => {
     try {
-      const response = await fetch('/api/ai');
-      const data = await response.json();
+      const response = await fetch('/api/ai', {
+        headers: getAuthHeaders(),
+      });
+      const data = await readJsonOrThrow<{
+        session?: { messages?: ChatMessage[] };
+        config?: { defaultModel?: AIModelType };
+      }>(response, 'Failed to load chat history');
       if (data.session?.messages) {
         setMessages(data.session.messages);
       }
@@ -113,7 +142,7 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
     } catch (error) {
       console.error('Failed to load chat history:', error);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     if (isOpen) {
@@ -150,7 +179,10 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
     try {
       const response = await fetch('/api/ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({ 
           message: userMessage, 
           model: selectedModel,
@@ -161,7 +193,10 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
         }),
       });
 
-      const data = await response.json();
+      const data = await readJsonOrThrow<{
+        message?: ChatMessage;
+        executionResult?: AIExecutionResult;
+      }>(response, response.status === 401 ? ct.unauthorized : ct.sendFailed);
       
       // 更新消息列表
       setMessages(prev => {
@@ -190,8 +225,23 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
       await loadChatHistory();
     } catch (error) {
       console.error('Failed to send message:', error);
-      // 移除临时消息
-      setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id));
+      const errorMessage = error instanceof Error ? error.message : ct.sendFailed;
+      setMessages(prev => [
+        ...prev.filter(m => m.id !== tempUserMessage.id),
+        {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content: errorMessage,
+          timestamp: Date.now(),
+          executionResult: {
+            added: [],
+            completed: [],
+            deleted: [],
+            updated: [],
+            errors: [errorMessage],
+          },
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -200,7 +250,11 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
   // 清除对话
   const clearChat = async () => {
     try {
-      await fetch('/api/ai', { method: 'DELETE' });
+      const response = await fetch('/api/ai', {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      await readJsonOrThrow<unknown>(response, 'Failed to clear chat');
       setMessages([]);
     } catch (error) {
       console.error('Failed to clear chat:', error);

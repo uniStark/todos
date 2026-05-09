@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import { KeyboardResize, KeyboardStyle } from '@capacitor/keyboard';
 
 // 检测是否是开发模式
 const isDev = process.env.NODE_ENV === 'development';
@@ -50,8 +51,8 @@ const config: CapacitorConfig = {
     },
     // 键盘
     Keyboard: {
-      resize: 'body',
-      style: 'DARK',
+      resize: KeyboardResize.Body,
+      style: KeyboardStyle.Dark,
       resizeOnFullScreen: true,
     },
     // 触觉反馈

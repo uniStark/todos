@@ -11,6 +11,30 @@ const KEYS = {
   CHAT_SESSION: 'stark_chat_session',
 };
 
+async function readJsonOrThrow<T>(response: Response, fallbackMessage: string): Promise<T> {
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    // Preserve status error when the response body is empty.
+  }
+
+  if (!response.ok) {
+    const message = typeof data === 'object' && data !== null && 'message' in data
+      ? String((data as { message?: unknown }).message)
+      : typeof data === 'object' && data !== null && 'error' in data
+        ? String((data as { error?: unknown }).error)
+        : fallbackMessage;
+    throw new Error(`${message} (${response.status})`);
+  }
+
+  return data as T;
+}
+
+async function ensureOk(response: Response, fallbackMessage: string): Promise<void> {
+  await readJsonOrThrow<unknown>(response, fallbackMessage);
+}
+
 // ==================== Todos ====================
 
 export async function getMobileTodos(): Promise<Todo[]> {
@@ -135,7 +159,7 @@ export function useStorage() {
     // Todos
     getTodos: isMobile 
       ? getMobileTodos 
-      : async () => (await fetch('/api/todos')).json(),
+      : async () => readJsonOrThrow<Todo[]>(await fetch('/api/todos'), 'Failed to fetch todos'),
     
     saveTodo: isMobile
       ? async (todo: Partial<Todo> & { text: string }) => {
@@ -159,7 +183,7 @@ export function useStorage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(todo),
           });
-          return response.json();
+          return readJsonOrThrow<Todo>(response, 'Failed to save todo');
         },
     
     updateTodo: isMobile
@@ -179,7 +203,7 @@ export function useStorage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id, ...updates }),
           });
-          return response.json();
+          return readJsonOrThrow<Todo>(response, 'Failed to update todo');
         },
     
     deleteTodo: isMobile
@@ -193,13 +217,13 @@ export function useStorage() {
           }
         }
       : async (id: string) => {
-          await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
+          await ensureOk(await fetch(`/api/todos?id=${id}`, { method: 'DELETE' }), 'Failed to delete todo');
         },
     
     // Groups
     getGroups: isMobile
       ? getMobileGroups
-      : async () => (await fetch('/api/groups')).json(),
+      : async () => readJsonOrThrow<Group[]>(await fetch('/api/groups'), 'Failed to fetch groups'),
     
     saveGroup: isMobile
       ? async (name: string) => {
@@ -219,7 +243,7 @@ export function useStorage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name }),
           });
-          return response.json();
+          return readJsonOrThrow<Group>(response, 'Failed to save group');
         },
     
     deleteGroup: isMobile
@@ -235,7 +259,7 @@ export function useStorage() {
           await saveMobileTodos(updatedTodos);
         }
       : async (id: string) => {
-          await fetch(`/api/groups?id=${id}`, { method: 'DELETE' });
+          await ensureOk(await fetch(`/api/groups?id=${id}`, { method: 'DELETE' }), 'Failed to delete group');
         },
   };
 }

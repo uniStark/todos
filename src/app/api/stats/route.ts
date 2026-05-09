@@ -13,7 +13,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { isNewVisitor } = await request.json();
+    const bodyText = await request.text();
+    const body = bodyText.trim() ? JSON.parse(bodyText) : {};
+    const isNewVisitor = typeof body?.isNewVisitor === 'boolean' ? body.isNewVisitor : false;
     const stats = updateStats(!!isNewVisitor);
     return NextResponse.json(stats);
   } catch (error) {

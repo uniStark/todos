@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 // 检测是否是移动端构建
 const isMobileBuild = process.env.NEXT_OUTPUT === 'export';
@@ -20,6 +21,13 @@ const nextConfig: NextConfig = {
   
   // 压缩优化
   compress: true,
+
+  // Mobile static export uses an isolated build directory so it cannot corrupt
+  // a regular server build running in the same workspace.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+
+  // Avoid workspace-root inference from unrelated lockfiles above this project.
+  outputFileTracingRoot: path.resolve(__dirname),
   
   // 图片优化
   images: {

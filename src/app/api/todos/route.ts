@@ -1,23 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getTodos, saveTodos, Todo } from '@/lib/storage';
-
-// API 密码验证
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'stark123';
-
-function verifyApiKey(request: Request): boolean {
-  const apiKey = request.headers.get('X-API-Key') || request.headers.get('Authorization')?.replace('Bearer ', '');
-  return apiKey === AUTH_PASSWORD;
-}
-
-function unauthorizedResponse() {
-  return NextResponse.json(
-    { 
-      error: 'Unauthorized', 
-      message: 'Valid API key required. Use header: X-API-Key: <password> or Authorization: Bearer <password>' 
-    }, 
-    { status: 401 }
-  );
-}
+import { unauthorizedResponse, verifyApiKey } from '@/lib/serverAuth';
 
 // GET - 获取所有任务（无需认证）
 export async function GET() {

@@ -1,12 +1,11 @@
 'use client';
 
-import { Todo, Group, AIActions, AIExecutionResult, AIModelType, Priority, ChatMessage, ChatSession } from './types';
+import { Todo, Group, AIActions, AIExecutionResult, AIModelType, ChatMessage, ChatSession } from './types';
 import { getMobileTodos, saveMobileTodos, getMobileGroups, saveMobileGroups, getMobileChatSession, saveMobileChatSession } from './mobileStorage';
 import { Preferences } from '@capacitor/preferences';
 
-// AI 配置
-const AI_CONFIG = {
-  apiKey: '', // TODO: load from user settings via Preferences
+// AI 配置默认值；敏感的 API Key 必须运行时从 Capacitor Preferences 读取。
+const DEFAULT_AI_CONFIG = {
   baseUrl: 'https://api.siliconflow.cn/v1',
   models: {
     glm4: 'zai-org/GLM-4.6',
@@ -17,15 +16,69 @@ const AI_CONFIG = {
   timeout: 60,
 };
 
+type MobileAIConfig = typeof DEFAULT_AI_CONFIG & {
+  apiKey: string;
+};
+
+const MOBILE_AI_CONFIG_KEY = 'stark_mobile_ai_config';
+const MOBILE_AI_PREFERENCE_KEYS = {
+  apiKey: 'stark_mobile_ai_api_key',
+  baseUrl: 'stark_mobile_ai_base_url',
+  glm4Model: 'stark_mobile_ai_model_glm4',
+  deepseekModel: 'stark_mobile_ai_model_deepseek_v3_1',
+};
+
+type StoredMobileAIConfig = Partial<{
+  apiKey: string;
+  baseUrl: string;
+  models: Partial<typeof DEFAULT_AI_CONFIG.models>;
+}>;
+
+async function getPreferenceValue(key: string): Promise<string | undefined> {
+  const { value } = await Preferences.get({ key });
+  return value?.trim() || undefined;
+}
+
+async function getStoredMobileAIConfig(): Promise<StoredMobileAIConfig> {
+  const { value } = await Preferences.get({ key: MOBILE_AI_CONFIG_KEY });
+  if (!value) return {};
+
+  try {
+    const parsed = JSON.parse(value) as StoredMobileAIConfig;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    console.warn('[MobileAI] Failed to parse stored AI config:', error);
+    return {};
+  }
+}
+
+async function getMobileAIConfig(): Promise<MobileAIConfig> {
+  const storedConfig = await getStoredMobileAIConfig();
+  const apiKey = storedConfig.apiKey?.trim() || await getPreferenceValue(MOBILE_AI_PREFERENCE_KEYS.apiKey) || '';
+  const baseUrl = storedConfig.baseUrl?.trim() || await getPreferenceValue(MOBILE_AI_PREFERENCE_KEYS.baseUrl) || DEFAULT_AI_CONFIG.baseUrl;
+  const glm4Model = storedConfig.models?.glm4?.trim() || await getPreferenceValue(MOBILE_AI_PREFERENCE_KEYS.glm4Model) || DEFAULT_AI_CONFIG.models.glm4;
+  const deepseekModel = storedConfig.models?.deepseek_v3_1?.trim() || await getPreferenceValue(MOBILE_AI_PREFERENCE_KEYS.deepseekModel) || DEFAULT_AI_CONFIG.models.deepseek_v3_1;
+
+  return {
+    ...DEFAULT_AI_CONFIG,
+    apiKey,
+    baseUrl: baseUrl.replace(/\/+$/, ''),
+    models: {
+      glm4: glm4Model,
+      deepseek_v3_1: deepseekModel,
+    },
+  };
+}
+
 // 获取模型名称
-const getModelName = (model: AIModelType): string => {
+const getModelName = (model: AIModelType, config: MobileAIConfig): string => {
   switch (model) {
     case 'glm4':
-      return AI_CONFIG.models.glm4;
+      return config.models.glm4;
     case 'deepseek_v3.1':
-      return AI_CONFIG.models.deepseek_v3_1;
+      return config.models.deepseek_v3_1;
     default:
-      return AI_CONFIG.models.deepseek_v3_1;
+      return config.models.deepseek_v3_1;
   }
 };
 
@@ -241,8 +294,8 @@ async function parseAndExecuteActions(
   }
 
   // 获取本地数据
-  let todos = await getMobileTodos();
-  let groups = await getMobileGroups();
+  const todos = await getMobileTodos();
+  const groups = await getMobileGroups();
   const todoMap = new Map(todos.filter(t => !t.deleted).map(t => [t.id, t]));
 
   console.log('[MobileAI] Executing actions:', JSON.stringify(actions, null, 2));
@@ -406,6 +459,11 @@ export async function sendMobileAIMessage(
     // 获取本地数据
     const allTodos = (await getMobileTodos()).filter(t => !t.deleted);
     const groups = await getMobileGroups();
+    const aiConfig = await getMobileAIConfig();
+
+    if (!aiConfig.apiKey) {
+      throw new Error('移动端 AI 未配置 API Key。请先在应用设置中保存 AI API Key 后再使用。');
+    }
     
     // 格式化数据
     const todosText = formatTodosForAI(allTodos, groups, settings);
@@ -427,36 +485,46 @@ export async function sendMobileAIMessage(
     const systemPrompt = getSystemPrompt(currentDateTime, todosText, groupsText, settings);
 
     const requestBody = {
-      model: getModelName(model),
+      model: getModelName(model, aiConfig),
       messages: [
         { role: 'system', content: systemPrompt },
         ...historyMessages,
       ],
-      temperature: AI_CONFIG.temperature,
-      max_tokens: AI_CONFIG.maxTokens,
+      temperature: aiConfig.temperature,
+      max_tokens: aiConfig.maxTokens,
       stream: false,
     };
 
-    console.log('[MobileAI] Sending request with model:', getModelName(model));
+    console.log('[MobileAI] Sending request with model:', getModelName(model, aiConfig));
 
     // 调用 AI API
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), AI_CONFIG.timeout * 1000);
+    const timeoutId = setTimeout(() => controller.abort(), aiConfig.timeout * 1000);
 
-    const response = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
+    let response: Response;
+    try {
+      response = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${aiConfig.apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
-      throw new Error(`AI API error: ${response.status}`);
+      let errorDetail = '';
+      try {
+        const errorData = await response.json();
+        errorDetail = errorData?.message || errorData?.error?.message || errorData?.error || '';
+      } catch {
+        // Ignore non-JSON error payloads.
+      }
+      throw new Error(`AI API 请求失败: ${response.status}${errorDetail ? ` - ${errorDetail}` : ''}`);
     }
 
     const data = await response.json();

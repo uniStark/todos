@@ -5,10 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, Copy, Check, Lock, Unlock, Send, 
-  FileJson, Code2, Zap, Shield, Clock, Terminal
+  FileJson, Code2, Zap, Shield, Terminal
 } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
-import { translations } from '@/lib/translations';
 
 interface Endpoint {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -125,7 +124,6 @@ const methodColors: Record<string, { bg: string; text: string; border: string }>
 export default function ApiDocsPage() {
   const router = useRouter();
   const { settings } = useSettings();
-  const t = translations[settings.language];
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 

@@ -1,28 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getGroups, saveGroups, Group, getTodos, saveTodos } from '@/lib/storage';
-
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'stark123';
-
-function verifyApiKey(request: Request): boolean {
-  const apiKey = request.headers.get('X-API-Key') || request.headers.get('Authorization')?.replace('Bearer ', '');
-  return apiKey === AUTH_PASSWORD;
-}
-
-function unauthorizedResponse() {
-  return NextResponse.json(
-    { 
-      error: 'Unauthorized', 
-      message: 'Valid API key required.' 
-    }, 
-    { status: 401 }
-  );
-}
+import { unauthorizedResponse, verifyApiKey } from '@/lib/serverAuth';
 
 export async function GET() {
   try {
     const groups = getGroups();
     return NextResponse.json(groups);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch groups' }, { status: 500 });
   }
 }
@@ -45,7 +29,7 @@ export async function POST(request: Request) {
     saveGroups(groups);
     
     return NextResponse.json(newGroup, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create group' }, { status: 500 });
   }
 }
@@ -76,7 +60,7 @@ export async function DELETE(request: Request) {
     saveTodos(updatedTodos);
     
     return NextResponse.json({ success: true, id });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to delete group' }, { status: 500 });
   }
 }

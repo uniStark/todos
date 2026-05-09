@@ -2,16 +2,15 @@
 
 import React, { useMemo, useState } from 'react';
 import { 
-  LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { motion } from 'framer-motion';
-import { format, subDays, isWithinInterval, startOfDay, endOfDay, eachDayOfInterval } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, eachDayOfInterval } from 'date-fns';
 import { enUS, zhCN } from 'date-fns/locale';
 import { Todo } from '@/lib/types';
 import { useSettings } from '@/contexts/SettingsContext';
 import { translations } from '@/lib/translations';
-import { Calendar, TrendingUp, CheckCircle2, Clock, Filter, ChevronLeft, ChevronRight, Eye, Users } from 'lucide-react';
+import { Calendar, TrendingUp, CheckCircle2, Eye, Users } from 'lucide-react';
 
 interface AnalyticsDashboardProps {
   todos: Todo[];
@@ -19,6 +18,18 @@ interface AnalyticsDashboardProps {
 }
 
 type Range = '7d' | '30d' | 'all';
+
+interface TooltipEntry {
+  color?: string;
+  name?: string;
+  value?: number | string;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipEntry[];
+  label?: string | number;
+}
 
 export default function AnalyticsDashboard({ todos, siteStats }: AnalyticsDashboardProps) {
   const { settings } = useSettings();
@@ -73,12 +84,12 @@ export default function AnalyticsDashboard({ todos, siteStats }: AnalyticsDashbo
   }, [filteredData]);
 
   // Pro Max Custom Tooltip
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl border border-white/20 dark:border-slate-700/50 ring-1 ring-black/5">
           <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
+          {payload.map((entry, index) => (
             <div key={index} className="flex items-center gap-2 mb-1">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
               <p className="text-sm font-bold text-slate-900 dark:text-white">

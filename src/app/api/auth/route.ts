@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// 预设密码，可通过环境变量 AUTH_PASSWORD 配置
-// 默认密码: stark123
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'stark123';
+import { verifyPassword } from '@/lib/serverAuth';
 
 export async function POST(request: Request) {
   try {
@@ -15,7 +12,7 @@ export async function POST(request: Request) {
       );
     }
     
-    const isValid = password === AUTH_PASSWORD;
+    const isValid = verifyPassword(password);
     
     if (isValid) {
       console.log('[Auth] User authenticated successfully');

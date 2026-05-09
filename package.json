@@ -2,11 +2,12 @@
   "name": "stark-todo-list",
   "version": "1.0.0",
   "description": "A minimalist, modern, and highly polished Todo List application built with Next.js",
-  "author": "STARK Team",
+  "author": "Adrian Stark",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/stark-todo-list.git"
+    "url": "https://github.com/uniStark/Todos.git"
   },
   "keywords": [
     "todo",
@@ -20,16 +21,16 @@
     "productivity"
   ],
   "bugs": {
-    "url": "https://github.com/yourusername/stark-todo-list/issues"
+    "url": "https://github.com/uniStark/Todos/issues"
   },
-  "homepage": "https://github.com/yourusername/stark-todo-list#readme",
+  "homepage": "https://github.com/uniStark/Todos#readme",
   "private": false,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "build:mobile": "NEXT_OUTPUT=export next build",
+    "lint": "eslint .",
+    "build:mobile": "node scripts/build-mobile.mjs",
     "cap:init": "cap init 'Todos' com.stark.todos --web-dir out",
     "cap:add:ios": "cap add ios",
     "cap:sync": "cap sync",
@@ -39,31 +40,33 @@
     "ios:build": "pnpm build:mobile && pnpm cap:sync"
   },
   "dependencies": {
-    "@capacitor/cli": "^8.0.2",
-    "@capacitor/core": "^8.0.2",
-    "@capacitor/haptics": "^8.0.0",
-    "@capacitor/ios": "^8.0.2",
-    "@capacitor/keyboard": "^8.0.0",
-    "@capacitor/preferences": "^8.0.0",
-    "@capacitor/splash-screen": "^8.0.0",
-    "@capacitor/status-bar": "^8.0.0",
-    "@lobehub/icons": "^4.0.3",
+    "@capacitor/cli": "^8.3.3",
+    "@capacitor/core": "^8.3.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.3.3",
+    "@capacitor/keyboard": "^8.0.3",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
+    "@lobehub/icons": "^5.8.0",
+    "@lobehub/ui": "5.10.2",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.468.0",
-    "next": "15.1.2",
+    "next": "15.5.18",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^3.7.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.18",
     "eslint": "^9",
-    "eslint-config-next": "15.1.2",
-    "postcss": "^8",
+    "eslint-config-next": "15.5.18",
+    "postcss": "^8.5.14",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
@@ -71,5 +74,27 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@isaacs/brace-expansion": "5.0.6",
+      "@xmldom/xmldom": "0.8.13",
+      "ajv@<6.14.0": "6.14.0",
+      "brace-expansion@<1.1.13": "1.1.13",
+      "dompurify": "3.4.0",
+      "flatted": "3.4.2",
+      "lodash": "4.18.1",
+      "lodash-es": "4.18.1",
+      "minimatch@<3.1.4": "3.1.4",
+      "minimatch@>=9.0.0 <9.0.9": "9.0.9",
+      "minimatch@>=10.0.0 <10.2.5": "10.2.5",
+      "picomatch@<2.3.2": "2.3.2",
+      "picomatch@>=4.0.0 <4.0.4": "4.0.4",
+      "postcss": "8.5.14",
+      "tar": "7.5.15",
+      "uuid@>=11.0.0 <11.1.1": "11.1.1",
+      "uuid@>=13.0.0 <13.0.1": "13.0.1",
+      "yaml@>=1.0.0 <1.10.3": "1.10.3"
+    }
   }
 }

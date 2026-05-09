@@ -11,23 +11,56 @@ const GROUPS_FILE = path.join(DATA_DIR, 'groups.json');
 export { DEFAULT_GROUP_ID };
 export type { Todo, Group, Stats };
 
+function ensureParentDir(filePath: string) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+function backupCorruptFile(filePath: string) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const backupPath = `${filePath}.corrupt.${Date.now()}`;
+  fs.copyFileSync(filePath, backupPath);
+  console.error(`[Storage] Backed up corrupt JSON file to ${backupPath}`);
+}
+
+function readJsonFile<T>(filePath: string, label: string): T {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
+  } catch (error) {
+    backupCorruptFile(filePath);
+    console.error(`[Storage] Invalid ${label} JSON at ${filePath}:`, error);
+    throw new Error(`[Storage] Invalid ${label} JSON at ${filePath}`);
+  }
+}
+
+function writeJsonFile(filePath: string, value: unknown) {
+  ensureParentDir(filePath);
+  const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
+  fs.writeFileSync(tempPath, JSON.stringify(value, null, 2), 'utf-8');
+  fs.renameSync(tempPath, filePath);
+}
+
 export const getTodos = (): Todo[] => {
   try {
-    // 确保目录存在
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureParentDir(DATA_FILE);
     
     // 如果文件不存在，创建空数组
     if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(DATA_FILE, '[]', 'utf-8');
+      writeJsonFile(DATA_FILE, []);
       console.log(`[Storage] Created new todos file: ${DATA_FILE}`);
       return [];
     }
     
-    const data = fs.readFileSync(DATA_FILE, 'utf-8');
-    let todos: Todo[] = JSON.parse(data);
+    let todos = readJsonFile<Todo[]>(DATA_FILE, 'todos');
+    if (!Array.isArray(todos)) {
+      backupCorruptFile(DATA_FILE);
+      throw new Error(`[Storage] Todos JSON must be an array: ${DATA_FILE}`);
+    }
     
     // 迁移逻辑：确保所有任务都有 groupId，如果没有则归入默认分组
     let needsSave = false;
@@ -47,19 +80,13 @@ export const getTodos = (): Todo[] => {
     return todos;
   } catch (error) {
     console.error('[Storage] Error reading todos:', error);
-    return [];
+    throw error;
   }
 };
 
 export const saveTodos = (todos: Todo[]) => {
   try {
-    // 确保目录存在
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    fs.writeFileSync(DATA_FILE, JSON.stringify(todos, null, 2), 'utf-8');
+    writeJsonFile(DATA_FILE, todos);
     console.log(`[Storage] Saved ${todos.length} todos to ${DATA_FILE}`);
   } catch (error) {
     console.error('[Storage] Error saving todos:', error);
@@ -69,32 +96,29 @@ export const saveTodos = (todos: Todo[]) => {
 
 export const getGroups = (): Group[] => {
   try {
-    const dir = path.dirname(GROUPS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureParentDir(GROUPS_FILE);
     
     if (!fs.existsSync(GROUPS_FILE)) {
       const defaultGroups: Group[] = [{ id: DEFAULT_GROUP_ID, name: 'Default', createdAt: Date.now() }];
-      fs.writeFileSync(GROUPS_FILE, JSON.stringify(defaultGroups, null, 2), 'utf-8');
+      writeJsonFile(GROUPS_FILE, defaultGroups);
       return defaultGroups;
     }
     
-    const data = fs.readFileSync(GROUPS_FILE, 'utf-8');
-    return JSON.parse(data);
+    const groups = readJsonFile<Group[]>(GROUPS_FILE, 'groups');
+    if (!Array.isArray(groups)) {
+      backupCorruptFile(GROUPS_FILE);
+      throw new Error(`[Storage] Groups JSON must be an array: ${GROUPS_FILE}`);
+    }
+    return groups;
   } catch (error) {
     console.error('[Storage] Error reading groups:', error);
-    return [{ id: DEFAULT_GROUP_ID, name: 'Default', createdAt: Date.now() }];
+    throw error;
   }
 };
 
 export const saveGroups = (groups: Group[]) => {
   try {
-    const dir = path.dirname(GROUPS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(GROUPS_FILE, JSON.stringify(groups, null, 2), 'utf-8');
+    writeJsonFile(GROUPS_FILE, groups);
   } catch (error) {
     console.error('[Storage] Error saving groups:', error);
     throw error;
@@ -103,48 +127,40 @@ export const saveGroups = (groups: Group[]) => {
 
 export const getStats = (): Stats => {
   try {
-    // 确保数据目录存在
-    const dir = path.dirname(STATS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-      console.log(`[Storage] Created data directory: ${dir}`);
-    }
+    ensureParentDir(STATS_FILE);
     
     if (!fs.existsSync(STATS_FILE)) {
       const initialStats = { pv: 0, uv: 0 };
-      fs.writeFileSync(STATS_FILE, JSON.stringify(initialStats, null, 2), 'utf-8');
+      writeJsonFile(STATS_FILE, initialStats);
       console.log(`[Storage] Created new stats file: ${STATS_FILE}`);
       return initialStats;
     }
     
-    const data = fs.readFileSync(STATS_FILE, 'utf-8');
-    const stats = JSON.parse(data);
+    const stats = readJsonFile<Stats>(STATS_FILE, 'stats');
+    if (typeof stats?.pv !== 'number' || typeof stats?.uv !== 'number') {
+      backupCorruptFile(STATS_FILE);
+      throw new Error(`[Storage] Stats JSON must include numeric pv and uv: ${STATS_FILE}`);
+    }
     console.log(`[Storage] Loaded stats from ${STATS_FILE}: PV=${stats.pv}, UV=${stats.uv}`);
     return stats;
   } catch (error) {
     console.error('[Storage] Error reading stats:', error);
-    return { pv: 0, uv: 0 };
+    throw error;
   }
 };
 
 export const updateStats = (isNewVisitor: boolean): Stats => {
   try {
-    // 确保数据目录存在
-    const dir = path.dirname(STATS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
     const stats = getStats();
     stats.pv += 1;
     if (isNewVisitor) {
       stats.uv += 1;
     }
-    fs.writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2), 'utf-8');
+    writeJsonFile(STATS_FILE, stats);
     console.log(`[Storage] Updated stats: PV=${stats.pv}, UV=${stats.uv}`);
     return stats;
   } catch (error) {
     console.error('[Storage] Error updating stats:', error);
-    return { pv: 0, uv: 0 };
+    throw error;
   }
 };

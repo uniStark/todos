@@ -14,6 +14,7 @@ interface AuthContextType {
 
 const AUTH_STORAGE_KEY = 'stark-todo-auth';
 const AUTH_PASSWORD_KEY = 'stark-todo-pwd';
+const AUTH_SESSION_PASSWORD_KEY = 'stark-todo-session-pwd';
 
 // 默认值，用于 SSR
 const defaultContextValue: AuthContextType = {
@@ -38,10 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsClient(true);
     const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
-    const savedPwd = localStorage.getItem(AUTH_PASSWORD_KEY);
+    const savedPwd = sessionStorage.getItem(AUTH_SESSION_PASSWORD_KEY);
+    // 旧版本曾把明文密码持久化到 localStorage；启动时清理，避免开源项目默认长期留存敏感值。
+    localStorage.removeItem(AUTH_PASSWORD_KEY);
     if (savedAuth === 'true' && savedPwd) {
       setIsAuthenticated(true);
       setStoredPassword(savedPwd);
+    } else if (savedAuth === 'true') {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
     }
   }, []);
 
@@ -60,7 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsAuthenticated(true);
         setStoredPassword(password);
         localStorage.setItem(AUTH_STORAGE_KEY, 'true');
-        localStorage.setItem(AUTH_PASSWORD_KEY, password);
+        localStorage.removeItem(AUTH_PASSWORD_KEY);
+        sessionStorage.setItem(AUTH_SESSION_PASSWORD_KEY, password);
         setShowAuthModal(false);
         return true;
       }
@@ -77,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStoredPassword(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_PASSWORD_KEY);
+    sessionStorage.removeItem(AUTH_SESSION_PASSWORD_KEY);
   }, []);
 
   // 请求验证（显示弹窗）

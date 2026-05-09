@@ -10,10 +10,10 @@ services:
     environment:
       - NODE_ENV=production
       - DATA_DIR=/app/data
-      # 设置访问密码（可自定义，默认为 stark123）
-      - AUTH_PASSWORD=${AUTH_PASSWORD:-stark123}
-      # AI 大模型配置 (SiliconFlow API)
-      - AI_API_KEY=${AI_API_KEY:?AI_API_KEY required, set in .env or shell}
+      # 设置访问密码；生产环境请显式配置，留空会禁用受保护写操作
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-}
+      # AI 大模型配置 (SiliconFlow API，可选；留空时 AI 功能不可用)
+      - AI_API_KEY=${AI_API_KEY:-}
       - AI_BASE_URL=${AI_BASE_URL:-https://api.siliconflow.cn/v1}
       - AI_MODEL_GLM4=${AI_MODEL_GLM4:-zai-org/GLM-4.6}
       - AI_MODEL_DEEPSEEK=${AI_MODEL_DEEPSEEK:-deepseek-ai/DeepSeek-V3.1-Terminus}

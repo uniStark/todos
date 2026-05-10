@@ -77,8 +77,8 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/uniStark/Todos.git
-   cd Todos
+   git clone https://github.com/uniStark/todos.git
+   cd todos
    ```
 
 2. **安装依赖**

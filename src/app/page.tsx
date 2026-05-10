@@ -1092,7 +1092,7 @@ export default function Home() {
         className={`text-center ${isMobile ? 'pb-28' : 'pb-8'} pt-12`}
       >
         <a
-          href="https://github.com/uniStark/Todos"
+          href="https://github.com/uniStark/todos"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-slate-100/50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-700/30 backdrop-blur-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 cursor-pointer group"

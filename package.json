@@ -7,7 +7,7 @@
   "packageManager": "pnpm@10.33.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/uniStark/Todos.git"
+    "url": "https://github.com/uniStark/todos.git"
   },
   "keywords": [
     "todo",
@@ -21,9 +21,9 @@
     "productivity"
   ],
   "bugs": {
-    "url": "https://github.com/uniStark/Todos/issues"
+    "url": "https://github.com/uniStark/todos/issues"
   },
-  "homepage": "https://github.com/uniStark/Todos#readme",
+  "homepage": "https://github.com/uniStark/todos#readme",
   "private": false,
   "scripts": {
     "dev": "next dev",

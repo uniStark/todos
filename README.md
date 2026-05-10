@@ -77,8 +77,8 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/uniStark/Todos.git
-   cd Todos
+   git clone https://github.com/uniStark/todos.git
+   cd todos
    ```
 
 2. **Install dependencies**

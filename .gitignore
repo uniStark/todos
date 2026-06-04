@@ -20,6 +20,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
 
 # vercel
@@ -29,8 +30,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# data
+# data（运行时生成，绝不入库）
 todos.json
+groups.json
+chat-history.json
+# SQLite 数据库（含用户数据）
+todos.db
+todos.db-wal
+todos.db-shm
 
 # logs
 app.log

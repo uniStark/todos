@@ -1,9 +1,17 @@
 # ===================================
 # Stage 1: 依赖安装
 # ===================================
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+# 使用 Debian slim（glibc）而非 alpine：better-sqlite3 等原生模块在 glibc 下兼容性最佳。
+FROM node:22-bookworm-slim AS deps
 WORKDIR /app
+
+# 原生模块（better-sqlite3）在 prebuilt 不可用时需要 node-gyp 编译工具链。
+# 换用国内 Debian 镜像源加速 apt（兼容 deb822 .sources 与传统 sources.list 两种格式）。
+RUN { [ -f /etc/apt/sources.list.d/debian.sources ] && sed -i 's|deb.debian.org|mirrors.ustc.edu.cn|g; s|security.debian.org|mirrors.ustc.edu.cn|g' /etc/apt/sources.list.d/debian.sources; } ; \
+    { [ -f /etc/apt/sources.list ] && sed -i 's|deb.debian.org|mirrors.ustc.edu.cn|g; s|security.debian.org|mirrors.ustc.edu.cn|g' /etc/apt/sources.list; } ; \
+    apt-get update && apt-get install -y --no-install-recommends \
+      python3 make g++ ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # 配置镜像源加速
 RUN npm config set registry https://registry.npmmirror.com && \
@@ -11,7 +19,7 @@ RUN npm config set registry https://registry.npmmirror.com && \
 
 COPY package.json pnpm-lock.yaml* ./
 
-# 只安装生产依赖
+# 安装依赖（pnpm 通过 package.json 的 onlyBuiltDependencies 允许 better-sqlite3 执行构建脚本）
 RUN if [ -f pnpm-lock.yaml ]; then \
       corepack enable && \
       corepack prepare pnpm@10.33.0 --activate && \
@@ -25,40 +33,45 @@ RUN if [ -f pnpm-lock.yaml ]; then \
 # ===================================
 # Stage 2: 构建阶段
 # ===================================
-FROM node:20-alpine AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# 创建必要的目录
 RUN mkdir -p public
 
-# 禁用遥测
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# 构建应用（会生成 .next/standalone 目录）
+# 构建应用（生成 .next/standalone 目录）
 RUN npm run build
 
+# 裁剪为生产依赖（保留 better-sqlite3 原生模块及其传递依赖），供 runner 复用
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate && pnpm prune --prod
+
 # ===================================
-# Stage 3: 生产运行（极致轻量）
+# Stage 3: 生产运行
 # ===================================
-FROM node:20-alpine AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# 创建非特权用户
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+# 创建非特权用户（Debian 使用 groupadd/useradd）
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 --gid nodejs nextjs
 
-# 只复制必要的文件（standalone 模式）
+# standalone 输出（含按需 trace 的 node_modules）
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# 创建数据目录并设置权限
+# standalone 不会自动包含原生外部依赖（better-sqlite3）。
+# 复用 builder 裁剪后的生产 node_modules（含 better-sqlite3 原生绑定及传递依赖），补全 standalone 的空 node_modules。
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+# 数据目录（SQLite 数据库与旧 JSON 都存于此）
 RUN mkdir -p /app/data && \
     chown -R nextjs:nodejs /app/data && \
     chmod -R 755 /app/data
@@ -70,5 +83,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# 使用 node 直接启动，不需要 npm（更轻量）
 CMD ["node", "server.js"]

@@ -29,11 +29,11 @@ const endpoints: Endpoint[] = [
     path: '/api/todos',
     description: 'Get all active todos',
     descriptionZh: '获取所有活跃的任务',
-    auth: false,
+    auth: true,
     responseExample: [
       { id: 'uuid', text: 'Task content', completed: false, createdAt: 1706000000000 }
     ],
-    curlExample: 'curl https://your-domain.com/api/todos',
+    curlExample: 'curl https://your-domain.com/api/todos \\\n  --cookie "session=<your-session-cookie>"',
   },
   {
     method: 'POST',
@@ -51,7 +51,7 @@ const endpoints: Endpoint[] = [
     responseExample: { id: 'uuid', text: 'New task', completed: false, createdAt: 1706000000000 },
     curlExample: `curl -X POST https://your-domain.com/api/todos \\
   -H "Content-Type: application/json" \\
-  -H "X-API-Key: your-password" \\
+  --cookie "session=<your-session-cookie>" \\
   -d '{"text": "New task"}'`,
   },
   {
@@ -73,7 +73,7 @@ const endpoints: Endpoint[] = [
     responseExample: { id: 'uuid', text: 'Updated', completed: true, createdAt: 1706000000000, completedAt: 1706100000000 },
     curlExample: `curl -X PUT https://your-domain.com/api/todos \\
   -H "Content-Type: application/json" \\
-  -H "X-API-Key: your-password" \\
+  --cookie "session=<your-session-cookie>" \\
   -d '{"id": "todo-id", "completed": true}'`,
   },
   {
@@ -84,7 +84,7 @@ const endpoints: Endpoint[] = [
     auth: true,
     responseExample: { success: true, id: 'deleted-id' },
     curlExample: `curl -X DELETE "https://your-domain.com/api/todos?id=todo-id" \\
-  -H "X-API-Key: your-password"`,
+  --cookie "session=<your-session-cookie>"`,
   },
   {
     method: 'GET',
@@ -97,20 +97,51 @@ const endpoints: Endpoint[] = [
   },
   {
     method: 'POST',
-    path: '/api/auth',
-    description: 'Verify password',
-    descriptionZh: '验证密码',
+    path: '/api/auth/register',
+    description: 'Register a new account (sets session cookie)',
+    descriptionZh: '注册新账号（自动种 session cookie）',
     auth: false,
     requestBody: {
       type: 'application/json',
       properties: [
-        { name: 'password', type: 'string', required: true, description: 'Password to verify' },
+        { name: 'username', type: 'string', required: true, description: '3-32 chars, letters/numbers/underscore' },
+        { name: 'password', type: 'string', required: true, description: '6-128 chars' },
       ],
     },
-    responseExample: { success: true },
-    curlExample: `curl -X POST https://your-domain.com/api/auth \\
+    responseExample: { username: 'alice' },
+    curlExample: `curl -X POST https://your-domain.com/api/auth/register \\
   -H "Content-Type: application/json" \\
-  -d '{"password": "your-password"}'`,
+  -c cookies.txt \\
+  -d '{"username": "alice", "password": "your-password"}'`,
+  },
+  {
+    method: 'POST',
+    path: '/api/auth/login',
+    description: 'Sign in (sets session cookie)',
+    descriptionZh: '登录（自动种 session cookie）',
+    auth: false,
+    requestBody: {
+      type: 'application/json',
+      properties: [
+        { name: 'username', type: 'string', required: true, description: 'Account username' },
+        { name: 'password', type: 'string', required: true, description: 'Account password' },
+      ],
+    },
+    responseExample: { username: 'alice' },
+    curlExample: `curl -X POST https://your-domain.com/api/auth/login \\
+  -H "Content-Type: application/json" \\
+  -c cookies.txt \\
+  -d '{"username": "alice", "password": "your-password"}'`,
+  },
+  {
+    method: 'POST',
+    path: '/api/auth/logout',
+    description: 'Sign out (clears session cookie)',
+    descriptionZh: '退出登录（清除 session cookie）',
+    auth: true,
+    responseExample: { success: true },
+    curlExample: `curl -X POST https://your-domain.com/api/auth/logout \\
+  --cookie "session=<your-session-cookie>"`,
   },
 ];
 
@@ -181,17 +212,13 @@ export default function ApiDocsPage() {
                 {settings.language === 'zh' ? '认证方式' : 'Authentication'}
               </h3>
               <p className="text-sm text-slate-500 mb-3">
-                {settings.language === 'zh' 
-                  ? '需要认证的接口请在请求头中添加 API Key：' 
-                  : 'For protected endpoints, add API key to request headers:'}
+                {settings.language === 'zh'
+                  ? '先通过 /api/auth/login 或 /api/auth/register 登录，服务器会种下 HttpOnly session cookie。之后的同源请求会自动携带该 cookie，无需手动设置请求头：'
+                  : 'First sign in via /api/auth/login or /api/auth/register; the server sets an HttpOnly session cookie. Same-origin requests then carry it automatically, no manual header needed:'}
               </p>
               <div className="flex flex-wrap gap-2">
                 <code className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-mono text-slate-700 dark:text-slate-300">
-                  X-API-Key: your-password
-                </code>
-                <span className="text-slate-400 self-center">{settings.language === 'zh' ? '或' : 'or'}</span>
-                <code className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-mono text-slate-700 dark:text-slate-300">
-                  Authorization: Bearer your-password
+                  Cookie: session=&lt;your-session-cookie&gt;
                 </code>
               </div>
             </div>

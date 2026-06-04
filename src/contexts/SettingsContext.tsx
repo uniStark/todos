@@ -7,8 +7,8 @@ export interface Settings {
   logoText: string;
   timezone: string;
   theme: 'light' | 'dark' | 'system';
-  // AI 相关设置
-  aiModel: 'deepseek_v3.1' | 'glm4';
+  // AI 相关设置（模型 id 来自网关，是真实模型名）
+  aiModel: string;
   // 功能开关
   enablePriority: boolean;
   enableGroups: boolean;
@@ -24,8 +24,8 @@ const defaultSettings: Settings = {
   logoText: 'STARK',
   timezone: 'Asia/Shanghai',
   theme: 'dark',
-  // AI 相关设置
-  aiModel: 'deepseek_v3.1',
+  // AI 相关设置（默认模型）
+  aiModel: 'gpt-4o-mini',
   // 功能开关
   enablePriority: true,
   enableGroups: true,

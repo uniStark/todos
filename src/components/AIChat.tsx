@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -16,17 +17,21 @@ import {
   Edit3,
   AlertCircle,
 } from 'lucide-react';
-import { DeepSeek, Zhipu } from '@lobehub/icons';
 import { ChatMessage, AIExecutionResult, AIModelType } from '@/lib/types';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { OpenAI, Gemini } from '@lobehub/icons';
 
-// 模型图标组件
-const ModelIcon = ({ model, size = 20, className = '' }: { model: AIModelType; size?: number; className?: string }) => {
-  if (model === 'deepseek_v3.1') {
-    return <DeepSeek.Color size={size} className={className} />;
+// 模型图标：按 model id 前缀映射到厂商 logo（lobehub/lobe-icons，github.com/lobehub/lobe-icons）
+const ModelIcon = ({ model = '', size = 20, className = '' }: { model?: string; size?: number; className?: string }) => {
+  const m = model.toLowerCase();
+  if (m.startsWith('gpt') || m.startsWith('codex')) {
+    return <OpenAI size={size} className={className} />;
   }
-  return <Zhipu.Color size={size} className={className} />;
+  if (m.startsWith('gemini')) {
+    return <Gemini.Color size={size} />;
+  }
+  return <Sparkles size={size} className={className} />;
 };
 
 interface AIChatProps {
@@ -55,15 +60,18 @@ async function readJsonOrThrow<T>(response: Response, fallbackMessage: string): 
 
 export default function AIChat({ onRefreshTodos }: AIChatProps) {
   const { settings, updateSettings } = useSettings();
-  const { isAuthenticated, getAuthHeaders } = useAuth();
+  const { isAuthenticated } = useAuth();
   
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<AIModelType>(settings.aiModel || 'deepseek_v3.1');
+  const [selectedModel, setSelectedModel] = useState<AIModelType>(settings.aiModel || 'gpt-4o-mini');
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [showModelSelector, setShowModelSelector] = useState(false);
-  
+  const modelBtnRef = useRef<HTMLButtonElement>(null);
+  const [modelMenuPos, setModelMenuPos] = useState<{ top: number; right: number } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -126,23 +134,29 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
   // 加载聊天历史
   const loadChatHistory = useCallback(async () => {
     try {
-      const response = await fetch('/api/ai', {
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch('/api/ai');
       const data = await readJsonOrThrow<{
         session?: { messages?: ChatMessage[] };
-        config?: { defaultModel?: AIModelType };
+        config?: { defaultModel?: string; models?: string[] };
       }>(response, 'Failed to load chat history');
       if (data.session?.messages) {
         setMessages(data.session.messages);
       }
-      if (data.config?.defaultModel) {
-        setSelectedModel(data.config.defaultModel);
+      const models = data.config?.models ?? [];
+      if (models.length > 0) {
+        setAvailableModels(models);
       }
+      // 若当前选中的模型不在网关返回的列表中，则回退到默认模型
+      setSelectedModel((prev) => {
+        if (models.length > 0 && models.includes(prev)) {
+          return prev;
+        }
+        return data.config?.defaultModel || models[0] || prev;
+      });
     } catch (error) {
       console.error('Failed to load chat history:', error);
     }
-  }, [getAuthHeaders]);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -181,10 +195,9 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
         },
-        body: JSON.stringify({ 
-          message: userMessage, 
+        body: JSON.stringify({
+          message: userMessage,
           model: selectedModel,
           settings: {
             enablePriority: settings.enablePriority,
@@ -252,7 +265,6 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
     try {
       const response = await fetch('/api/ai', {
         method: 'DELETE',
-        headers: getAuthHeaders(),
       });
       await readJsonOrThrow<unknown>(response, 'Failed to clear chat');
       setMessages([]);
@@ -397,12 +409,12 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
               <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-violet-500/10 to-purple-500/10">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm">
-                    <ModelIcon model={selectedModel} size={24} />
+                    <ModelIcon model={selectedModel} size={24} className="text-violet-500" />
                   </div>
                   <div>
                     <h3 className="font-bold text-slate-900 dark:text-white">{ct.aiAssistant}</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {selectedModel === 'deepseek_v3.1' ? 'DeepSeek V3.1' : 'GLM-4'}
+                      {selectedModel}
                     </p>
                   </div>
                 </div>
@@ -410,24 +422,33 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
                   {/* 模型选择器 */}
                   <div className="relative">
                     <button
-                      onClick={() => setShowModelSelector(!showModelSelector)}
+                      ref={modelBtnRef}
+                      onClick={() => {
+                        if (!showModelSelector && modelBtnRef.current) {
+                          const r = modelBtnRef.current.getBoundingClientRect();
+                          setModelMenuPos({ top: r.bottom + 8, right: window.innerWidth - r.right });
+                        }
+                        setShowModelSelector((v) => !v);
+                      }}
                       className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
                       title={ct.selectModel}
                     >
                       <Settings2 size={18} />
                     </button>
-                    <AnimatePresence>
-                      {showModelSelector && (
+                    {/* 用 Portal 渲染到 body，fixed 定位，避免被聊天弹窗的 overflow-hidden 裁剪 */}
+                    {showModelSelector && modelMenuPos && createPortal(
+                      <>
+                        <div className="fixed inset-0 z-[150]" onClick={() => setShowModelSelector(false)} />
                         <motion.div
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-10"
+                          style={{ position: 'fixed', top: modelMenuPos.top, right: modelMenuPos.right }}
+                          className="w-56 max-h-[60vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-[200]"
                         >
-                          {(['deepseek_v3.1', 'glm4'] as AIModelType[]).map((model) => (
+                          {(availableModels.length > 0 ? availableModels : [selectedModel]).map((model) => (
                             <button
                               key={model}
-                              onClick={() => handleModelChange(model)}
+                              onClick={() => { handleModelChange(model); setShowModelSelector(false); }}
                               className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm rounded-lg transition-colors cursor-pointer ${
                                 selectedModel === model
                                   ? 'bg-violet-500 text-white'
@@ -435,12 +456,13 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
                               }`}
                             >
                               <ModelIcon model={model} size={18} />
-                              {model === 'deepseek_v3.1' ? ct.deepseek : ct.glm4}
+                              <span className="truncate">{model}</span>
                             </button>
                           ))}
                         </motion.div>
-                      )}
-                    </AnimatePresence>
+                      </>,
+                      document.body
+                    )}
                   </div>
                   <button
                     onClick={clearChat}
@@ -484,7 +506,7 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
                         {msg.role === 'user' ? (
                           <User size={16} className="text-white" />
                         ) : (
-                          <ModelIcon model={selectedModel} size={20} />
+                          <ModelIcon size={20} />
                         )}
                       </div>
 
@@ -525,7 +547,7 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
                     className="flex gap-3"
                   >
                     <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center">
-                      <ModelIcon model={selectedModel} size={20} />
+                      <ModelIcon size={20} />
                     </div>
                     <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl rounded-bl-md px-4 py-3">
                       <div className="flex gap-1">

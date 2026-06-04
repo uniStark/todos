@@ -1,123 +1,161 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { isMobileApp } from '@/lib/platform';
+
+interface AuthResult {
+  ok: boolean;
+  error?: string;
+}
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  showAuthModal: boolean;
-  authenticate: (password: string) => Promise<boolean>;
-  logout: () => void;
-  requestAuth: () => void;
-  closeAuthModal: () => void;
+  username: string | null;
+  allowRegistration: boolean;
+  requireInvite: boolean;
+  isChecking: boolean;
+  login: (username: string, password: string) => Promise<AuthResult>;
+  register: (username: string, password: string, inviteCode?: string) => Promise<AuthResult>;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
+  // 向后兼容：旧调用点仍可能引用，但 cookie 同源自动携带，无需任何头部。
   getAuthHeaders: () => Record<string, string>;
 }
-
-const AUTH_STORAGE_KEY = 'stark-todo-auth';
-const AUTH_PASSWORD_KEY = 'stark-todo-pwd';
-const AUTH_SESSION_PASSWORD_KEY = 'stark-todo-session-pwd';
 
 // 默认值，用于 SSR
 const defaultContextValue: AuthContextType = {
   isAuthenticated: false,
-  showAuthModal: false,
-  authenticate: async () => false,
-  logout: () => {},
-  requestAuth: () => {},
-  closeAuthModal: () => {},
+  username: null,
+  allowRegistration: false,
+  requireInvite: false,
+  isChecking: true,
+  login: async () => ({ ok: false }),
+  register: async () => ({ ok: false }),
+  logout: async () => {},
+  refresh: async () => {},
   getAuthHeaders: () => ({}),
 };
 
 const AuthContext = createContext<AuthContextType>(defaultContextValue);
 
+async function extractError(response: Response, fallback: string): Promise<string> {
+  try {
+    const data = await response.json();
+    if (data && typeof data.error === 'string') return data.error;
+  } catch {
+    // ignore malformed body
+  }
+  return fallback;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [isClient, setIsClient] = useState(false);
-  const [storedPassword, setStoredPassword] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [allowRegistration, setAllowRegistration] = useState(false);
+  const [requireInvite, setRequireInvite] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
-  // 客户端初始化
-  useEffect(() => {
-    setIsClient(true);
-    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
-    const savedPwd = sessionStorage.getItem(AUTH_SESSION_PASSWORD_KEY);
-    // 旧版本曾把明文密码持久化到 localStorage；启动时清理，避免开源项目默认长期留存敏感值。
-    localStorage.removeItem(AUTH_PASSWORD_KEY);
-    if (savedAuth === 'true' && savedPwd) {
+  // 启动探测：仅 Web 端调用 /api/auth/me；移动端为本地模式，直接视为已登录。
+  const refresh = useCallback(async () => {
+    if (isMobileApp()) {
       setIsAuthenticated(true);
-      setStoredPassword(savedPwd);
-    } else if (savedAuth === 'true') {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+      setUsername(null);
+      setAllowRegistration(false);
+      setRequireInvite(false);
+      setIsChecking(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/me');
+      const data = await response.json();
+      setIsAuthenticated(Boolean(data?.authenticated));
+      setUsername(typeof data?.username === 'string' ? data.username : null);
+      setAllowRegistration(Boolean(data?.allowRegistration));
+      setRequireInvite(Boolean(data?.requireInvite));
+    } catch (error) {
+      console.error('[Auth] Failed to check session:', error);
+      setIsAuthenticated(false);
+      setUsername(null);
+    } finally {
+      setIsChecking(false);
     }
   }, []);
 
-  // 验证密码
-  const authenticate = useCallback(async (password: string): Promise<boolean> => {
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const login = useCallback(async (user: string, password: string): Promise<AuthResult> => {
     try {
-      const response = await fetch('/api/auth', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username: user, password }),
       });
-      
+
+      if (!response.ok) {
+        return { ok: false, error: await extractError(response, 'Login failed') };
+      }
+
       const data = await response.json();
-      
-      if (data.success) {
-        setIsAuthenticated(true);
-        setStoredPassword(password);
-        localStorage.setItem(AUTH_STORAGE_KEY, 'true');
-        localStorage.removeItem(AUTH_PASSWORD_KEY);
-        sessionStorage.setItem(AUTH_SESSION_PASSWORD_KEY, password);
-        setShowAuthModal(false);
-        return true;
-      }
-      return false;
+      setIsAuthenticated(true);
+      setUsername(typeof data?.username === 'string' ? data.username : user);
+      return { ok: true };
     } catch (error) {
-      console.error('[Auth] Verification failed:', error);
-      return false;
+      console.error('[Auth] Login request failed:', error);
+      return { ok: false, error: 'Network error' };
     }
   }, []);
 
-  // 登出
-  const logout = useCallback(() => {
-    setIsAuthenticated(false);
-    setStoredPassword(null);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    localStorage.removeItem(AUTH_PASSWORD_KEY);
-    sessionStorage.removeItem(AUTH_SESSION_PASSWORD_KEY);
-  }, []);
+  const register = useCallback(async (user: string, password: string, inviteCode?: string): Promise<AuthResult> => {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password, inviteCode }),
+      });
 
-  // 请求验证（显示弹窗）
-  const requestAuth = useCallback(() => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-    }
-  }, [isAuthenticated]);
-
-  // 关闭弹窗
-  const closeAuthModal = useCallback(() => {
-    setShowAuthModal(false);
-  }, []);
-
-  // 获取认证请求头
-  const getAuthHeaders = useCallback((): Record<string, string> => {
-    if (storedPassword) {
-      return { 'X-API-Key': storedPassword };
-    }
-    return {};
-  }, [storedPassword]);
-
-  // 始终提供 Context，确保子组件可以访问
-  const contextValue: AuthContextType = isClient
-    ? {
-        isAuthenticated,
-        showAuthModal,
-        authenticate,
-        logout,
-        requestAuth,
-        closeAuthModal,
-        getAuthHeaders,
+      if (!response.ok) {
+        return { ok: false, error: await extractError(response, 'Registration failed') };
       }
-    : defaultContextValue;
+
+      const data = await response.json();
+      setIsAuthenticated(true);
+      setUsername(typeof data?.username === 'string' ? data.username : user);
+      return { ok: true };
+    } catch (error) {
+      console.error('[Auth] Register request failed:', error);
+      return { ok: false, error: 'Network error' };
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('[Auth] Logout request failed:', error);
+    } finally {
+      setIsAuthenticated(false);
+      setUsername(null);
+    }
+  }, []);
+
+  // cookie 同源自动携带，保留空实现以兼容历史调用点。
+  const getAuthHeaders = useCallback((): Record<string, string> => ({}), []);
+
+  const contextValue: AuthContextType = {
+    isAuthenticated,
+    username,
+    allowRegistration,
+    requireInvite,
+    isChecking,
+    login,
+    register,
+    logout,
+    refresh,
+    getAuthHeaders,
+  };
 
   return (
     <AuthContext.Provider value={contextValue}>

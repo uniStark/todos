@@ -56,13 +56,13 @@
   - 实时 KPI 指标统计（总数、完成数、成功率）
   - 灵活的时间范围选择（7天、一个月、所有时间）
 
-- **🔐 访问控制**
-  - 密码保护的任务操作（添加、编辑、删除）
-  - 客户端认证状态持久化
-  - 可通过环境变量配置密码
+- **🔐 多用户与数据隔离**
+  - 用户注册 / 登录，基于 HttpOnly cookie 会话
+  - 每个用户拥有独立私有的任务、分组与 AI 聊天记录
+  - 密码 scrypt 哈希存储，写接口同源（CSRF）校验，受控注册开关
 
 - **💾 数据持久化**
-  - 本地 JSON 存储（无需数据库）
+  - SQLite 数据库（better-sqlite3，WAL 模式）
   - 数据在应用重启后保留
   - 完全可追溯的任务历史
 
@@ -119,25 +119,35 @@
    - 启动新容器
    - 自动显示日志
 
-3. **配置访问密码**
+3. **创建首个账户 / 控制注册**
    ```bash
-   # 通过环境变量设置自定义密码
-   export AUTH_PASSWORD=your_custom_password
-   
-   # 或创建 .env 文件
-   echo "AUTH_PASSWORD=your_custom_password" > .env
+   # 默认：数据库为空时允许注册首个账户，之后公开注册关闭。
+   # 开放公开注册：
+   echo "ALLOW_REGISTRATION=true" > .env
+   # 或改为“凭邀请码注册”（开放注册但需提供正确邀请码）：
+   echo "INVITE_CODE=your_invite_code" >> .env
    ```
-   > Docker/生产环境中，受保护的写接口需要配置 `AUTH_PASSWORD`。如果留空，只读页面仍可访问，但新增、编辑、删除和 AI 操作会被禁用。
+   首次访问应用会进入登录页，直接注册首个账户即可；或用迁移脚本从旧 JSON 数据引导首账户（见下方「数据迁移」）。
+   > 认证基于 HttpOnly cookie 会话，密码以 scrypt 哈希存储，写接口做同源（CSRF）校验。每个用户的数据互相隔离。
 
 4. **配置 AI 功能（可选）**
    ```bash
-   # 不配置时，AI 相关功能不可用，但基础 Todo 功能可正常使用
+   # 不配置时，AI 相关功能不可用，但基础 Todo 功能可正常使用。
+   # 支持任意 OpenAI 兼容网关（OpenAI / 自建代理 / 第三方），模型列表会动态从 /v1/models 拉取
    echo "AI_API_KEY=your_api_key" >> .env
-   echo "AI_BASE_URL=https://api.siliconflow.cn/v1" >> .env
+   echo "AI_BASE_URL=https://api.openai.com/v1" >> .env   # 任意 OpenAI 兼容端点
+   echo "AI_DEFAULT_MODEL=gpt-4o-mini" >> .env            # 默认模型
    ```
    > `AI_API_KEY` 仅用于 AI 功能，基础 Todo 使用不需要配置；即使留空，Docker Compose 配置也可正常解析。
 
-5. **访问应用**
+5. **（可选）从旧版 JSON 数据迁移**
+   ```bash
+   # 把旧的 todos.json/groups.json/chat-history.json 导入 SQLite，并创建首个账户
+   # 本地：DATA_DIR 指向数据目录；Docker：在容器内执行，DATA_DIR=/app/data
+   DATA_DIR=./data node scripts/migrate-json-to-sqlite.mjs <用户名> <密码>
+   ```
+
+6. **访问应用**
    ```
    http://localhost:3002
    ```
@@ -245,17 +255,20 @@ Todos/
 
 ### 认证方式
 
-受保护的端点需要在请求头中提供 API 密钥：
+所有任务 / 分组 / AI 接口都需要登录。先调用登录接口拿到会话 cookie，后续请求携带该 cookie 即可：
 
 ```bash
-# 方式一：X-API-Key 请求头
--H "X-API-Key: your_password"
+# 登录并把会话 cookie 保存到 cookie jar
+curl -X POST https://your-domain/api/auth/login \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{"username": "alice", "password": "your_password"}'
 
-# 方式二：Authorization Bearer 请求头
--H "Authorization: Bearer your_password"
+# 后续请求携带 cookie
+curl https://your-domain/api/todos -b cookies.txt
 ```
 
-> 开发环境的回退密码是 `stark123`。Docker/生产环境请配置 `AUTH_PASSWORD`；否则受保护的写接口会被禁用。
+> 会话基于 HttpOnly cookie（`todo_session`），写接口要求同源（CSRF 校验）。每个用户只能访问自己的数据。
 
 ### 接口列表
 
@@ -263,21 +276,21 @@ Todos/
 
 | 方法 | 认证 | 描述 |
 |------|------|------|
-| GET | ❌ | 获取所有活跃任务 |
+| GET | ✅ | 获取当前用户的活跃任务 |
 | POST | ✅ | 创建新任务 |
 | PUT | ✅ | 更新现有任务 |
 | DELETE | ✅ | 软删除任务 |
 
 **GET /api/todos**
 ```bash
-curl https://your-domain/api/todos
+curl https://your-domain/api/todos -b cookies.txt
 ```
 
 **POST /api/todos**
 ```bash
 curl -X POST https://your-domain/api/todos \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: stark123" \
+  -b cookies.txt \
   -d '{"text": "新任务", "groupId": "default", "priority": "P1"}'
 ```
 
@@ -285,41 +298,39 @@ curl -X POST https://your-domain/api/todos \
 ```bash
 curl -X PUT https://your-domain/api/todos \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: stark123" \
+  -b cookies.txt \
   -d '{"id": "uuid", "completed": true, "text": "更新后的文本"}'
 ```
 
 **DELETE /api/todos**
 ```bash
-curl -X DELETE "https://your-domain/api/todos?id=uuid" \
-  -H "X-API-Key: stark123"
+curl -X DELETE "https://your-domain/api/todos?id=uuid" -b cookies.txt
 ```
 
 #### 分组接口 (`/api/groups`)
 
 | 方法 | 认证 | 描述 |
 |------|------|------|
-| GET | ❌ | 获取所有分组 |
+| GET | ✅ | 获取当前用户的分组 |
 | POST | ✅ | 创建新分组 |
 | DELETE | ✅ | 删除分组 |
 
 **GET /api/groups**
 ```bash
-curl https://your-domain/api/groups
+curl https://your-domain/api/groups -b cookies.txt
 ```
 
 **POST /api/groups**
 ```bash
 curl -X POST https://your-domain/api/groups \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: stark123" \
+  -b cookies.txt \
   -d '{"name": "工作"}'
 ```
 
 **DELETE /api/groups**
 ```bash
-curl -X DELETE "https://your-domain/api/groups?id=uuid" \
-  -H "X-API-Key: stark123"
+curl -X DELETE "https://your-domain/api/groups?id=uuid" -b cookies.txt
 ```
 
 #### 统计接口 (`/api/stats`)
@@ -334,17 +345,21 @@ curl -X DELETE "https://your-domain/api/groups?id=uuid" \
 curl https://your-domain/api/stats
 ```
 
-#### 认证接口 (`/api/auth`)
+#### 认证接口 (`/api/auth/*`)
 
-| 方法 | 认证 | 描述 |
-|------|------|------|
-| POST | ❌ | 验证密码 |
+| 方法 | 端点 | 认证 | 描述 |
+|------|------|------|------|
+| POST | `/api/auth/register` | ❌ | 注册（受 `ALLOW_REGISTRATION` / `INVITE_CODE` 控制，首用户放行），body 可含 `inviteCode`，成功后种会话 cookie |
+| POST | `/api/auth/login` | ❌ | 登录，成功后种会话 cookie |
+| POST | `/api/auth/logout` | ✅ | 注销当前会话 |
+| GET | `/api/auth/me` | — | 查询当前登录态与是否开放注册 |
 
-**POST /api/auth**
+**POST /api/auth/login**
 ```bash
-curl -X POST https://your-domain/api/auth \
+curl -X POST https://your-domain/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"password": "stark123"}'
+  -c cookies.txt \
+  -d '{"username": "alice", "password": "your_password"}'
 ```
 
 ## 🤝 贡献

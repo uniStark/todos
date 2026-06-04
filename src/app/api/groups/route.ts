@@ -1,33 +1,31 @@
 import { NextResponse } from 'next/server';
-import { getGroups, saveGroups, Group, getTodos, saveTodos } from '@/lib/storage';
-import { unauthorizedResponse, verifyApiKey } from '@/lib/serverAuth';
+import { randomUUID } from 'crypto';
+import { Group } from '@/lib/types';
+import { listGroups, insertGroup, deleteGroupAndReassign } from '@/lib/db/groupsRepo';
+import { requireUser, isSameOrigin, unauthorized, forbidden } from '@/lib/auth/session';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = requireUser(request);
+  if (!auth) return unauthorized();
+
   try {
-    const groups = getGroups();
-    return NextResponse.json(groups);
+    return NextResponse.json(listGroups(auth.userId));
   } catch {
     return NextResponse.json({ error: 'Failed to fetch groups' }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
-  try {
-    if (!verifyApiKey(request)) return unauthorizedResponse();
+  if (!isSameOrigin(request)) return forbidden();
+  const auth = requireUser(request);
+  if (!auth) return unauthorized();
 
+  try {
     const { name } = await request.json();
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
-    const groups = getGroups();
-    const newGroup: Group = {
-      id: crypto.randomUUID(),
-      name,
-      createdAt: Date.now(),
-    };
-
-    groups.push(newGroup);
-    saveGroups(groups);
-    
+    const newGroup: Group = { id: randomUUID(), name, createdAt: Date.now() };
+    insertGroup(auth.userId, newGroup);
     return NextResponse.json(newGroup, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Failed to create group' }, { status: 500 });
@@ -35,9 +33,11 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  try {
-    if (!verifyApiKey(request)) return unauthorizedResponse();
+  if (!isSameOrigin(request)) return forbidden();
+  const auth = requireUser(request);
+  if (!auth) return unauthorized();
 
+  try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -45,20 +45,8 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Valid ID is required' }, { status: 400 });
     }
 
-    const groups = getGroups();
-    const filteredGroups = groups.filter((g) => g.id !== id);
-    saveGroups(filteredGroups);
-
-    // 迁移该分组下的任务到默认分组
-    const todos = getTodos();
-    const updatedTodos = todos.map(todo => {
-      if (todo.groupId === id) {
-        return { ...todo, groupId: 'default' };
-      }
-      return todo;
-    });
-    saveTodos(updatedTodos);
-    
+    // 删除分组并把其下任务迁回默认分组（同事务）
+    deleteGroupAndReassign(auth.userId, id);
     return NextResponse.json({ success: true, id });
   } catch {
     return NextResponse.json({ error: 'Failed to delete group' }, { status: 500 });

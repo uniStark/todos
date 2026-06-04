@@ -56,13 +56,13 @@
   - Real-time KPI statistics (Total, Completed, Success Rate)
   - Flexible date ranges (7 Days, 30 Days, All Time)
 
-- **🔐 Access Control**
-  - Password-protected task operations (add, edit, delete)
-  - Client-side authentication persistence
-  - Configurable password via environment variable
+- **🔐 Multi-user & data isolation**
+  - User registration / login with HttpOnly cookie sessions
+  - Each user has private todos, groups, and AI chat history
+  - Passwords hashed with scrypt, same-origin (CSRF) checks on writes, controlled registration toggle
 
 - **💾 Data Persistence**
-  - Local JSON storage (no database required)
+  - SQLite database (better-sqlite3, WAL mode)
   - Data survives app restarts
   - Fully traceable task history
 
@@ -119,25 +119,36 @@
    - Start the new container
    - Display logs automatically
 
-3. **Configure authentication password**
+3. **Create the first account / control registration**
    ```bash
-   # Set custom password via environment variable
-   export AUTH_PASSWORD=your_custom_password
-   
-   # Or create a .env file
-   echo "AUTH_PASSWORD=your_custom_password" > .env
+   # By default the first account can register when the DB is empty; public
+   # registration is then closed. To open public registration:
+   echo "ALLOW_REGISTRATION=true" > .env
+   # Or switch to invite-code registration (open, but a correct code is required):
+   echo "INVITE_CODE=your_invite_code" >> .env
    ```
-   > In Docker/production, protected write APIs require `AUTH_PASSWORD`. If it is empty, read-only pages still load, but add/edit/delete and AI operations are disabled.
+   On first visit you land on the login page — just register the first account; or bootstrap it from legacy JSON data with the migration script (see "Data migration" below).
+   > Auth uses HttpOnly cookie sessions, passwords are scrypt-hashed, and write endpoints enforce same-origin (CSRF) checks. Each user's data is isolated.
 
 4. **Configure AI features (optional)**
    ```bash
-   # Leave unset to disable AI-backed features
+   # Leave unset to disable AI-backed features.
+   # Works with any OpenAI-compatible gateway (OpenAI / self-hosted proxy / 3rd-party);
+   # the model list is fetched dynamically from /v1/models.
    echo "AI_API_KEY=your_api_key" >> .env
-   echo "AI_BASE_URL=https://api.siliconflow.cn/v1" >> .env
+   echo "AI_BASE_URL=https://api.openai.com/v1" >> .env   # any OpenAI-compatible endpoint
+   echo "AI_DEFAULT_MODEL=gpt-4o-mini" >> .env            # default model
    ```
    > `AI_API_KEY` is optional for base Todo usage. If it is empty, AI-backed features may be unavailable, but Docker Compose configuration still works.
 
-5. **Access the application**
+5. **(Optional) Migrate from legacy JSON data**
+   ```bash
+   # Import old todos.json/groups.json/chat-history.json into SQLite and create the first account.
+   # Local: point DATA_DIR at the data dir; Docker: run inside the container with DATA_DIR=/app/data
+   DATA_DIR=./data node scripts/migrate-json-to-sqlite.mjs <username> <password>
+   ```
+
+6. **Access the application**
    ```
    http://localhost:3002
    ```
@@ -245,17 +256,20 @@ The application provides a RESTful API for programmatic access. View the interac
 
 ### Authentication
 
-Protected endpoints require authentication via API key in request headers:
+All todos / groups / AI endpoints require login. Call the login endpoint to obtain a session cookie, then send that cookie on subsequent requests:
 
 ```bash
-# Option 1: X-API-Key header
--H "X-API-Key: your_password"
+# Log in and save the session cookie to a cookie jar
+curl -X POST https://your-domain/api/auth/login \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{"username": "alice", "password": "your_password"}'
 
-# Option 2: Authorization Bearer header
--H "Authorization: Bearer your_password"
+# Subsequent requests carry the cookie
+curl https://your-domain/api/todos -b cookies.txt
 ```
 
-> In development, the fallback password is `stark123`. In Docker/production, configure `AUTH_PASSWORD`; otherwise protected write APIs are disabled.
+> Sessions are HttpOnly cookies (`todo_session`); write endpoints require same-origin (CSRF check). Each user can only access their own data.
 
 ### Endpoints
 
@@ -263,21 +277,21 @@ Protected endpoints require authentication via API key in request headers:
 
 | Method | Auth | Description |
 |--------|------|-------------|
-| GET | ❌ | Get all active todos |
+| GET | ✅ | Get the current user's active todos |
 | POST | ✅ | Create a new todo |
 | PUT | ✅ | Update an existing todo |
 | DELETE | ✅ | Soft delete a todo |
 
 **GET /api/todos**
 ```bash
-curl https://your-domain/api/todos
+curl https://your-domain/api/todos -b cookies.txt
 ```
 
 **POST /api/todos**
 ```bash
 curl -X POST https://your-domain/api/todos \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: stark123" \
+  -b cookies.txt \
   -d '{"text": "New task", "groupId": "default", "priority": "P1"}'
 ```
 
@@ -285,41 +299,39 @@ curl -X POST https://your-domain/api/todos \
 ```bash
 curl -X PUT https://your-domain/api/todos \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: stark123" \
+  -b cookies.txt \
   -d '{"id": "uuid", "completed": true, "text": "Updated text"}'
 ```
 
 **DELETE /api/todos**
 ```bash
-curl -X DELETE "https://your-domain/api/todos?id=uuid" \
-  -H "X-API-Key: stark123"
+curl -X DELETE "https://your-domain/api/todos?id=uuid" -b cookies.txt
 ```
 
 #### Groups API (`/api/groups`)
 
 | Method | Auth | Description |
 |--------|------|-------------|
-| GET | ❌ | Get all groups |
+| GET | ✅ | Get the current user's groups |
 | POST | ✅ | Create a new group |
 | DELETE | ✅ | Delete a group |
 
 **GET /api/groups**
 ```bash
-curl https://your-domain/api/groups
+curl https://your-domain/api/groups -b cookies.txt
 ```
 
 **POST /api/groups**
 ```bash
 curl -X POST https://your-domain/api/groups \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: stark123" \
+  -b cookies.txt \
   -d '{"name": "Work"}'
 ```
 
 **DELETE /api/groups**
 ```bash
-curl -X DELETE "https://your-domain/api/groups?id=uuid" \
-  -H "X-API-Key: stark123"
+curl -X DELETE "https://your-domain/api/groups?id=uuid" -b cookies.txt
 ```
 
 #### Stats API (`/api/stats`)
@@ -334,17 +346,21 @@ curl -X DELETE "https://your-domain/api/groups?id=uuid" \
 curl https://your-domain/api/stats
 ```
 
-#### Auth API (`/api/auth`)
+#### Auth API (`/api/auth/*`)
 
-| Method | Auth | Description |
-|--------|------|-------------|
-| POST | ❌ | Verify password |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/auth/register` | ❌ | Register (gated by `ALLOW_REGISTRATION` / `INVITE_CODE`, first user allowed); body may include `inviteCode`; sets session cookie |
+| POST | `/api/auth/login` | ❌ | Log in; sets session cookie |
+| POST | `/api/auth/logout` | ✅ | Destroy current session |
+| GET | `/api/auth/me` | — | Query current login state and whether registration is open |
 
-**POST /api/auth**
+**POST /api/auth/login**
 ```bash
-curl -X POST https://your-domain/api/auth \
+curl -X POST https://your-domain/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"password": "stark123"}'
+  -c cookies.txt \
+  -d '{"username": "alice", "password": "your_password"}'
 ```
 
 ## 🤝 Contributing

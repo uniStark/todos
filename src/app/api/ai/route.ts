@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import {
-  getChatSession,
-  addMessage,
-  clearChatSession,
   getAIConfig,
   getModelName,
   getSystemPrompt,
   formatTodosForAI,
   AIFeatureSettings,
 } from '@/lib/chatStorage';
-import { getTodos, saveTodos, getGroups, saveGroups } from '@/lib/storage';
-import { unauthorizedResponse, verifyApiKey } from '@/lib/serverAuth';
+import { getOrCreateCurrentSession, addChatMessage, clearCurrentSession } from '@/lib/db/chatRepo';
+import { listTodos, getTodo, insertTodo, updateTodo } from '@/lib/db/todosRepo';
+import { listGroups, insertGroup } from '@/lib/db/groupsRepo';
+import { requireUser, isSameOrigin, unauthorized, forbidden } from '@/lib/auth/session';
 import { ChatMessage, AIActions, AIExecutionResult, AIModelType, Todo, Group } from '@/lib/types';
 
 // 获取当前日期时间字符串（包含时分）
@@ -26,20 +26,58 @@ function getCurrentDateTimeString(): string {
   return `${year}年${month}月${day}日 ${hour}:${minute} (星期${weekDay})`;
 }
 
-// GET - 获取聊天历史和AI配置
-export async function GET(request: Request) {
+// 从网关 /models 动态拉取可用模型 id 列表；失败时回退到 [defaultModel]
+async function fetchAvailableModels(baseUrl: string, apiKey: string, defaultModel: string): Promise<string[]> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   try {
-    if (!verifyApiKey(request)) {
-      return unauthorizedResponse();
+    const response = await fetch(`${baseUrl}/models`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      console.error(`[AI API GET] Failed to fetch models: ${response.status}`);
+      return [defaultModel];
     }
 
-    const session = getChatSession();
+    const data = await response.json();
+    const ids = Array.isArray(data?.data)
+      ? data.data
+          .map((m: { id?: unknown }) => (typeof m?.id === 'string' ? m.id : null))
+          .filter((id: string | null): id is string => Boolean(id))
+      : [];
+
+    if (ids.length === 0) {
+      console.warn('[AI API GET] Gateway returned empty model list, falling back to defaultModel');
+      return [defaultModel];
+    }
+
+    // 确保 defaultModel 始终在列表中
+    return ids.includes(defaultModel) ? ids : [defaultModel, ...ids];
+  } catch (error) {
+    console.error('[AI API GET] Error fetching models from gateway:', error);
+    return [defaultModel];
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// GET - 获取当前用户的聊天历史和AI配置
+export async function GET(request: Request) {
+  const auth = requireUser(request);
+  if (!auth) return unauthorized();
+
+  try {
+    const session = getOrCreateCurrentSession(auth.userId, Date.now());
     const config = getAIConfig();
+    const models = await fetchAvailableModels(config.baseUrl, config.apiKey, config.defaultModel);
     return NextResponse.json({
       session,
       config: {
         defaultModel: config.defaultModel,
-        models: ['deepseek_v3.1', 'glm4'],
+        models,
       },
     });
   } catch (error) {
@@ -50,11 +88,12 @@ export async function GET(request: Request) {
 
 // POST - 发送消息给AI
 export async function POST(request: Request) {
-  try {
-    if (!verifyApiKey(request)) {
-      return unauthorizedResponse();
-    }
+  if (!isSameOrigin(request)) return forbidden();
+  const auth = requireUser(request);
+  if (!auth) return unauthorized();
+  const userId = auth.userId;
 
+  try {
     const { message, model, settings: featureSettings } = await request.json();
 
     if (!message) {
@@ -63,53 +102,43 @@ export async function POST(request: Request) {
 
     const config = getAIConfig();
     const selectedModel: AIModelType = model || config.defaultModel;
-    
-    // 功能设置（从客户端传递或使用默认值）
+
     const aiSettings: AIFeatureSettings = {
       enablePriority: featureSettings?.enablePriority ?? true,
       enableGroups: featureSettings?.enableGroups ?? true,
     };
 
     // 保存用户消息
+    const now = Date.now();
+    const session = getOrCreateCurrentSession(userId, now);
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       role: 'user',
       content: message,
-      timestamp: Date.now(),
+      timestamp: now,
     };
-    addMessage(userMessage);
+    addChatMessage(userId, session.id, userMessage, now);
 
-    // 获取历史消息用于上下文
-    const session = getChatSession();
-    const historyMessages = session.messages
-      .filter(m => m.role !== 'system')
+    // 取最近 10 条（含刚加入的用户消息）作为上下文
+    const historyMessages = [...session.messages, userMessage]
+      .filter((m) => m.role !== 'system')
       .slice(-10)
-      .map(m => ({
-        role: m.role,
-        content: m.content,
-      }));
+      .map((m) => ({ role: m.role, content: m.content }));
 
-    // 获取完整的待办事项列表（未删除的）
-    const allTodos = getTodos().filter(t => !t.deleted);
-    const groups = getGroups();
-    
-    // 格式化待办事项和分组供 AI 使用（只给未完成的任务）
+    // 当前用户未删除的任务与分组
+    const allTodos = listTodos(userId).filter((t) => !t.deleted);
+    const groups = listGroups(userId);
+
     const todosText = formatTodosForAI(allTodos, groups, aiSettings);
-    const groupsText = groups.length > 0 
-      ? groups.map(g => `- ${g.name} (ID: ${g.id})`).join('\n')
-      : '暂无自定义分组';
+    const groupsText =
+      groups.length > 0 ? groups.map((g) => `- ${g.name} (ID: ${g.id})`).join('\n') : '暂无自定义分组';
 
-    // 获取当前日期时间用于系统提示词
     const currentDateTime = getCurrentDateTimeString();
     const systemPrompt = getSystemPrompt(currentDateTime, todosText, groupsText, aiSettings);
 
-    // 构建请求
     const requestBody = {
       model: getModelName(selectedModel),
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...historyMessages,
-      ],
+      messages: [{ role: 'system', content: systemPrompt }, ...historyMessages],
       temperature: config.temperature,
       max_tokens: config.maxTokens,
       stream: false,
@@ -117,7 +146,6 @@ export async function POST(request: Request) {
 
     console.log(`[AI API] Sending request to ${config.baseUrl}/chat/completions with model: ${getModelName(selectedModel)}`);
 
-    // 调用AI API
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), config.timeout * 1000);
 
@@ -126,7 +154,7 @@ export async function POST(request: Request) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
+          Authorization: `Bearer ${config.apiKey}`,
         },
         body: JSON.stringify(requestBody),
         signal: controller.signal,
@@ -143,63 +171,55 @@ export async function POST(request: Request) {
       const data = await response.json();
       const aiContent = data.choices?.[0]?.message?.content || '抱歉，我没有收到有效的回复。';
 
-      // 解析并执行 AI 操作
-      const { cleanContent, executionResult } = await parseAndExecuteActions(
-        aiContent, 
-        allTodos, 
-        groups,
-        aiSettings
-      );
+      // 解析并执行 AI 操作（全部限定在当前用户范围）
+      const { cleanContent, executionResult } = await parseAndExecuteActions(aiContent, userId, aiSettings);
 
-      // 保存AI回复
       const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         role: 'assistant',
         content: cleanContent,
         timestamp: Date.now(),
-        executionResult: executionResult,
-      };
-      addMessage(assistantMessage);
-
-      return NextResponse.json({
-        message: assistantMessage,
         executionResult,
-      });
+      };
+      addChatMessage(userId, session.id, assistantMessage, Date.now());
+
+      return NextResponse.json({ message: assistantMessage, executionResult });
     } catch (fetchError) {
       clearTimeout(timeoutId);
       throw fetchError;
     }
   } catch (error) {
     console.error('[AI API POST] Error:', error);
-    
-    // 保存错误消息
+
     const errorMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       role: 'assistant',
       content: '抱歉，AI服务暂时不可用。请稍后再试。',
       timestamp: Date.now(),
     };
     try {
-      addMessage(errorMessage);
+      const now = Date.now();
+      const session = getOrCreateCurrentSession(userId, now);
+      addChatMessage(userId, session.id, errorMessage, now);
     } catch (storageError) {
       console.error('[AI API POST] Failed to save error message:', storageError);
     }
 
-    return NextResponse.json({
-      message: errorMessage,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }, { status: 500 });
+    return NextResponse.json(
+      { message: errorMessage, error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
   }
 }
 
-// DELETE - 清除聊天历史
+// DELETE - 清除当前用户的聊天历史
 export async function DELETE(request: Request) {
-  try {
-    if (!verifyApiKey(request)) {
-      return unauthorizedResponse();
-    }
+  if (!isSameOrigin(request)) return forbidden();
+  const auth = requireUser(request);
+  if (!auth) return unauthorized();
 
-    const session = clearChatSession();
+  try {
+    const session = clearCurrentSession(auth.userId, Date.now());
     return NextResponse.json({ success: true, session });
   } catch (error) {
     console.error('[AI API DELETE] Error:', error);
@@ -207,16 +227,23 @@ export async function DELETE(request: Request) {
   }
 }
 
-// 解析并执行 AI 操作（支持多种 JSON 格式）
+// 在用户分组缓存里按名（大小写不敏感）查找，不存在则创建并入库
+function findOrCreateGroup(userId: string, name: string, cache: Group[], now: number): string {
+  const existing = cache.find((g) => g.name.toLowerCase() === name.toLowerCase());
+  if (existing) return existing.id;
+  const group: Group = { id: randomUUID(), name, createdAt: now };
+  insertGroup(userId, group);
+  cache.push(group);
+  console.log(`[AI API] Created new group: ${name}`);
+  return group.id;
+}
+
+// 解析并执行 AI 操作（支持多种 JSON 格式），全部限定在 userId 范围
 async function parseAndExecuteActions(
-  content: string, 
-  currentTodos: Todo[], 
-  currentGroups: Group[],
+  content: string,
+  userId: string,
   settings: AIFeatureSettings
-): Promise<{
-  cleanContent: string;
-  executionResult: AIExecutionResult;
-}> {
+): Promise<{ cleanContent: string; executionResult: AIExecutionResult }> {
   let cleanContent = content;
   const executionResult: AIExecutionResult = {
     added: [],
@@ -226,18 +253,12 @@ async function parseAndExecuteActions(
     errors: [],
   };
 
-  // 尝试多种 JSON 解析模式
   let actions: AIActions | null = null;
-  
-  // 模式1: ```json ... ``` 代码块
+
   const jsonCodeBlockPattern = /```json\s*([\s\S]*?)\s*```/;
   const jsonMatch = content.match(jsonCodeBlockPattern);
-  
-  // 模式2: <<<ACTIONS>>> ... <<<END_ACTIONS>>> (兼容旧格式)
   const actionsPattern = /<<<ACTIONS>>>([\s\S]*?)<<<END_ACTIONS>>>/;
   const actionsMatch = content.match(actionsPattern);
-  
-  // 模式3: 直接的 JSON 对象 { "actions": ... }
   const directJsonPattern = /\{[\s\S]*"actions"[\s\S]*\}/;
   const directMatch = content.match(directJsonPattern);
 
@@ -257,7 +278,6 @@ async function parseAndExecuteActions(
       console.error('[AI API] Failed to parse ACTIONS block:', e);
     }
   } else if (directMatch) {
-    // 只有在 JSON 在内容末尾时才移除
     const jsonStartIndex = content.lastIndexOf('{');
     if (jsonStartIndex > content.length / 2) {
       cleanContent = content.substring(0, jsonStartIndex).trim();
@@ -274,62 +294,35 @@ async function parseAndExecuteActions(
     return { cleanContent, executionResult };
   }
 
-  // 获取最新的数据
-  const todos = getTodos();
-  const groups = getGroups();
-  // 创建映射时只考虑未删除的任务
-  const todoMap = new Map(todos.filter(t => !t.deleted).map(t => [t.id, t]));
+  const now = Date.now();
+  const groupsCache = listGroups(userId);
 
   console.log('[AI API] Executing actions:', JSON.stringify(actions, null, 2));
 
-  // 执行添加操作
+  // 添加
   if (actions.add && Array.isArray(actions.add)) {
     for (const addAction of actions.add) {
       try {
-        // 处理分组（如果启用）
         let groupId = 'default';
         if (settings.enableGroups && addAction.groupName) {
-          const existingGroup = groups.find(g => 
-            g.name.toLowerCase() === addAction.groupName!.toLowerCase()
-          );
-          if (existingGroup) {
-            groupId = existingGroup.id;
-          } else {
-            // 创建新分组
-            const newGroup: Group = {
-              id: crypto.randomUUID(),
-              name: addAction.groupName,
-              createdAt: Date.now(),
-            };
-            groups.push(newGroup);
-            groupId = newGroup.id;
-            console.log(`[AI API] Created new group: ${addAction.groupName}`);
-          }
+          groupId = findOrCreateGroup(userId, addAction.groupName, groupsCache, now);
         }
 
-        // 创建新任务
         const newTodo: Todo = {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           text: addAction.text,
           completed: addAction.isCompleted || false,
-          createdAt: addAction.createdAt 
-            ? new Date(addAction.createdAt).getTime() 
-            : Date.now(),
+          createdAt: addAction.createdAt ? new Date(addAction.createdAt).getTime() : now,
           groupId,
-          priority: settings.enablePriority ? (addAction.priority || 'P2') : 'P2',
+          priority: settings.enablePriority ? addAction.priority || 'P2' : 'P2',
           dueDate: addAction.dueDate,
         };
-
-        // 如果是已完成的任务
         if (addAction.isCompleted) {
-          newTodo.completedAt = addAction.completedAt 
-            ? new Date(addAction.completedAt).getTime() 
-            : Date.now();
+          newTodo.completedAt = addAction.completedAt ? new Date(addAction.completedAt).getTime() : now;
         }
 
-        todos.push(newTodo);
+        insertTodo(userId, newTodo);
         executionResult.added.push({ id: newTodo.id, text: newTodo.text });
-        console.log(`[AI API] Added todo: ${newTodo.id} - "${newTodo.text}"`);
       } catch (err) {
         console.error('[AI API] Failed to add todo:', err);
         executionResult.errors.push(`添加任务失败: ${addAction.text}`);
@@ -337,93 +330,50 @@ async function parseAndExecuteActions(
     }
   }
 
-  // 执行完成操作
+  // 完成
   if (actions.complete && Array.isArray(actions.complete)) {
     for (const todoId of actions.complete) {
-      const todo = todoMap.get(todoId);
+      const todo = getTodo(userId, todoId);
       if (todo && !todo.completed && !todo.deleted) {
-        const index = todos.findIndex(t => t.id === todoId);
-        if (index !== -1) {
-          todos[index].completed = true;
-          todos[index].completedAt = Date.now();
-          executionResult.completed.push({ id: todoId, text: todo.text });
-          console.log(`[AI API] Completed todo: ${todoId} - "${todo.text}"`);
-        }
+        updateTodo(userId, { ...todo, completed: true, completedAt: Date.now() });
+        executionResult.completed.push({ id: todoId, text: todo.text });
       } else if (!todo) {
         executionResult.errors.push(`任务不存在: ${todoId}`);
-        console.warn(`[AI API] Todo not found: ${todoId}`);
       }
     }
   }
 
-  // 执行删除操作
+  // 删除
   if (actions.delete && Array.isArray(actions.delete)) {
     for (const todoId of actions.delete) {
-      const todo = todoMap.get(todoId);
+      const todo = getTodo(userId, todoId);
       if (todo && !todo.deleted) {
-        const index = todos.findIndex(t => t.id === todoId);
-        if (index !== -1) {
-          todos[index].deleted = true;
-          todos[index].deletedAt = Date.now();
-          executionResult.deleted.push({ id: todoId, text: todo.text });
-          console.log(`[AI API] Deleted todo: ${todoId} - "${todo.text}"`);
-        }
+        updateTodo(userId, { ...todo, deleted: true, deletedAt: Date.now() });
+        executionResult.deleted.push({ id: todoId, text: todo.text });
       } else if (!todo) {
         executionResult.errors.push(`任务不存在: ${todoId}`);
-        console.warn(`[AI API] Todo not found: ${todoId}`);
       }
     }
   }
 
-  // 执行更新操作
+  // 更新
   if (actions.update && Array.isArray(actions.update)) {
     for (const updateAction of actions.update) {
-      const todo = todoMap.get(updateAction.id);
+      const todo = getTodo(userId, updateAction.id);
       if (todo && !todo.deleted) {
-        const index = todos.findIndex(t => t.id === updateAction.id);
-        if (index !== -1) {
-          if (updateAction.text) todos[index].text = updateAction.text;
-          if (settings.enablePriority && updateAction.priority) {
-            todos[index].priority = updateAction.priority;
-          }
-          if (updateAction.dueDate !== undefined) todos[index].dueDate = updateAction.dueDate;
-          
-          // 处理分组更新（如果启用）
-          if (settings.enableGroups && updateAction.groupName) {
-            const existingGroup = groups.find(g => 
-              g.name.toLowerCase() === updateAction.groupName!.toLowerCase()
-            );
-            if (existingGroup) {
-              todos[index].groupId = existingGroup.id;
-            } else {
-              const newGroup: Group = {
-                id: crypto.randomUUID(),
-                name: updateAction.groupName,
-                createdAt: Date.now(),
-              };
-              groups.push(newGroup);
-              todos[index].groupId = newGroup.id;
-            }
-          }
-          
-          executionResult.updated.push({ id: updateAction.id, text: todos[index].text });
-          console.log(`[AI API] Updated todo: ${updateAction.id}`);
+        const updated: Todo = { ...todo };
+        if (updateAction.text) updated.text = updateAction.text;
+        if (settings.enablePriority && updateAction.priority) updated.priority = updateAction.priority;
+        if (updateAction.dueDate !== undefined) updated.dueDate = updateAction.dueDate;
+        if (settings.enableGroups && updateAction.groupName) {
+          updated.groupId = findOrCreateGroup(userId, updateAction.groupName, groupsCache, now);
         }
+        updateTodo(userId, updated);
+        executionResult.updated.push({ id: updateAction.id, text: updated.text });
       } else if (!todo) {
         executionResult.errors.push(`任务不存在: ${updateAction.id}`);
-        console.warn(`[AI API] Todo not found for update: ${updateAction.id}`);
       }
     }
-  }
-
-  // 保存更改
-  if (executionResult.added.length > 0 || 
-      executionResult.completed.length > 0 || 
-      executionResult.deleted.length > 0 ||
-      executionResult.updated.length > 0) {
-    saveTodos(todos);
-    saveGroups(groups);
-    console.log('[AI API] Saved changes to storage');
   }
 
   return { cleanContent, executionResult };

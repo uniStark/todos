@@ -3,26 +3,17 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Globe, Type, Clock, Sun, Moon, Monitor, Check, ShieldCheck, ShieldOff, Tag, FolderOpen, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ArrowLeft, Globe, Type, Clock, Sun, Moon, Monitor, Check, Tag, FolderOpen, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { translations, Language } from '@/lib/translations';
 import { TIMEZONES } from '@/lib/timezones';
-import { isMobileApp } from '@/lib/platform';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { settings, updateSettings } = useSettings();
-  const { isAuthenticated, requestAuth } = useAuth();
   const [tempLogoText, setTempLogoText] = useState(settings.logoText);
   const [showSaved, setShowSaved] = useState(false);
-  const [isNativeApp, setIsNativeApp] = useState(false);
   const t = translations[settings.language];
-
-  // 检测是否是原生 App
-  useEffect(() => {
-    setIsNativeApp(isMobileApp());
-  }, []);
 
   // Update tempLogoText when settings.logoText changes
   useEffect(() => {
@@ -30,11 +21,6 @@ export default function SettingsPage() {
   }, [settings.logoText]);
 
   const handleSave = () => {
-    // 检查权限（移动端跳过）
-    if (!isNativeApp && !isAuthenticated) {
-      requestAuth();
-      return;
-    }
     updateSettings({ logoText: tempLogoText });
     showSaveNotification();
   };
@@ -50,11 +36,6 @@ export default function SettingsPage() {
   };
 
   const handleTimezoneChange = (timezone: string) => {
-    // 检查权限（移动端跳过）
-    if (!isNativeApp && !isAuthenticated) {
-      requestAuth();
-      return;
-    }
     updateSettings({ timezone });
     showSaveNotification();
   };
@@ -114,24 +95,6 @@ export default function SettingsPage() {
             </h1>
             <div className="h-1 w-12 bg-blue-500 rounded-full mt-2" />
           </div>
-          {/* Auth Status - 仅在 Web 端显示 */}
-          {!isNativeApp && (
-            <button
-              onClick={requestAuth}
-              className={`p-3 rounded-2xl border shadow-lg transition-all cursor-pointer ${
-                isAuthenticated 
-                  ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-300 dark:border-emerald-700' 
-                  : 'bg-amber-500/10 dark:bg-amber-500/20 border-amber-300 dark:border-amber-700'
-              }`}
-              title={isAuthenticated ? t.authenticated : t.authRequired}
-            >
-              {isAuthenticated ? (
-                <ShieldCheck size={22} className="text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <ShieldOff size={22} className="text-amber-600 dark:text-amber-400" />
-              )}
-            </button>
-          )}
         </motion.div>
 
         {/* Settings Sections Pro Max */}

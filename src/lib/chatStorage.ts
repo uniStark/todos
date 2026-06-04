@@ -40,34 +40,21 @@ function readChatSession(): ChatSession {
   }
 }
 
-// 从环境变量获取 AI 配置
+// 从环境变量获取 AI 配置（接入 OpenAI 兼容网关）
 export const getAIConfig = (): AIConfig => {
   return {
     apiKey: process.env.AI_API_KEY || '',
-    baseUrl: process.env.AI_BASE_URL || 'https://api.siliconflow.cn/v1',
-    models: {
-      glm4: process.env.AI_MODEL_GLM4 || 'zai-org/GLM-4.6',
-      deepseek_v3_1: process.env.AI_MODEL_DEEPSEEK || 'deepseek-ai/DeepSeek-V3.1-Terminus',
-    },
-    defaultModel: (process.env.AI_DEFAULT_MODEL || 'deepseek_v3.1') as AIModelType,
+    // 任意 OpenAI 兼容网关：用 AI_BASE_URL 指定（默认 OpenAI 官方），模型列表动态从 /v1/models 拉取
+    baseUrl: (process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
+    defaultModel: process.env.AI_DEFAULT_MODEL || 'gpt-4o-mini',
     temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
     timeout: parseInt(process.env.AI_TIMEOUT || '600', 10),
   };
 };
 
-// 获取模型名称
-export const getModelName = (modelType: AIModelType): string => {
-  const config = getAIConfig();
-  switch (modelType) {
-    case 'glm4':
-      return config.models.glm4;
-    case 'deepseek_v3.1':
-      return config.models.deepseek_v3_1;
-    default:
-      return config.models.deepseek_v3_1;
-  }
-};
+// 模型 id 现在直接就是网关侧的真实模型名，原样返回即可
+export const getModelName = (modelType: AIModelType): string => modelType;
 
 // 获取聊天历史
 export const getChatSession = (): ChatSession => {

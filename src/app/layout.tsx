@@ -4,7 +4,6 @@ import "./globals.css";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import StatsTracker from "@/components/StatsTracker";
-import AuthModal from "@/components/AuthModal";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -52,7 +51,6 @@ export default function RootLayout({
         <SettingsProvider>
           <AuthProvider>
             <StatsTracker />
-            <AuthModal />
             {children}
           </AuthProvider>
         </SettingsProvider>

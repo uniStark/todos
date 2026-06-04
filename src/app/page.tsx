@@ -4,13 +4,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Todo, Group, Priority, DEFAULT_GROUP_ID } from '@/lib/types';
-import { Trash2, Plus, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, ShieldCheck, ShieldOff, Pencil, Check, X, Github, Heart, Code2, FolderPlus, Flag, ChevronDown, MoreVertical } from 'lucide-react';
+import { Trash2, Plus, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, LogOut, Pencil, Check, X, Github, Heart, Code2, FolderPlus, Flag, ChevronDown, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { translations } from '@/lib/translations';
 import { isMobileApp } from '@/lib/platform';
 import { getMobileTodos, saveMobileTodos, getMobileGroups } from '@/lib/mobileStorage';
+import AuthModal from '@/components/AuthModal';
 
 // 动态导入 Logo 组件（非关键路径）
 const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
@@ -64,7 +65,7 @@ function resizeTextarea(textarea: HTMLTextAreaElement | null) {
 export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
-  const { isAuthenticated, requestAuth, logout, getAuthHeaders } = useAuth();
+  const { isAuthenticated, isChecking, logout } = useAuth();
   const t = translations[settings.language];
   const [todos, setTodos] = useState<Todo[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -146,9 +147,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetchTodos();
-    fetchGroups();
+    // Web 端依赖 cookie session，仅在已登录后加载，避免 401；移动端为本地模式，恒可加载。
+    if (isMobileApp() || isAuthenticated) {
+      fetchTodos();
+      fetchGroups();
+    }
+  }, [fetchGroups, fetchTodos, isAuthenticated]);
 
+  useEffect(() => {
     // Detect mobile device
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768); // md breakpoint
@@ -158,7 +164,7 @@ export default function Home() {
     window.addEventListener('resize', checkMobile);
 
     return () => window.removeEventListener('resize', checkMobile);
-  }, [fetchGroups, fetchTodos]);
+  }, []);
 
   const addGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,10 +173,7 @@ export default function Home() {
     try {
       const response = await fetch('/api/groups', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newGroupName.trim() }),
       });
       const newGroup = await readJsonOrThrow<Group>(response, 'Failed to add group');
@@ -189,7 +192,6 @@ export default function Home() {
     try {
       const response = await fetch(`/api/groups?id=${id}`, {
         method: 'DELETE',
-        headers: getAuthHeaders()
       });
       await ensureOk(response, 'Failed to delete group');
       setGroups(groups.filter(g => g.id !== id));
@@ -206,9 +208,8 @@ export default function Home() {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
-    // 检查权限（移动端跳过）
+    // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
     if (!isNativeApp && !isAuthenticated) {
-      requestAuth();
       return;
     }
 
@@ -243,10 +244,7 @@ export default function Home() {
 
         const response = await fetch('/api/todos', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            ...getAuthHeaders()
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
         });
         const newTodo = await readJsonOrThrow<Todo>(response, 'Failed to add todo');
@@ -258,12 +256,11 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to add todo:', error);
     }
-  }, [inputValue, todos, isAuthenticated, requestAuth, selectedGroupId, selectedPriority, getAuthHeaders, settings.enableGroups, settings.enablePriority, isNativeApp, hapticFeedback]);
+  }, [inputValue, todos, isAuthenticated, selectedGroupId, selectedPriority, settings.enableGroups, settings.enablePriority, isNativeApp, hapticFeedback]);
 
   const toggleTodo = useCallback(async (id: string, completed: boolean) => {
-    // 检查权限（移动端跳过）
+    // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
     if (!isNativeApp && !isAuthenticated) {
-      requestAuth();
       return;
     }
 
@@ -286,10 +283,7 @@ export default function Home() {
         // Web 端使用 API
         const response = await fetch('/api/todos', {
           method: 'PUT',
-          headers: { 
-            'Content-Type': 'application/json',
-            ...getAuthHeaders()
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, completed: !completed }),
         });
         const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to toggle todo');
@@ -299,12 +293,11 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to toggle todo:', error);
     }
-  }, [todos, isAuthenticated, requestAuth, getAuthHeaders, isNativeApp, hapticFeedback]);
+  }, [todos, isAuthenticated, isNativeApp, hapticFeedback]);
 
   const deleteTodo = useCallback(async (id: string) => {
-    // 检查权限（移动端跳过）
+    // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
     if (!isNativeApp && !isAuthenticated) {
-      requestAuth();
       return;
     }
 
@@ -323,7 +316,6 @@ export default function Home() {
         // Web 端使用 API
         const response = await fetch(`/api/todos?id=${id}`, {
           method: 'DELETE',
-          headers: getAuthHeaders()
         });
         await ensureOk(response, 'Failed to delete todo');
         setTodos(todos.filter((t) => t.id !== id));
@@ -332,18 +324,17 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to delete todo:', error);
     }
-  }, [todos, isAuthenticated, requestAuth, getAuthHeaders, isNativeApp, hapticFeedback]);
+  }, [todos, isAuthenticated, isNativeApp, hapticFeedback]);
 
   // 开始编辑
   const startEdit = useCallback((id: string, text: string) => {
-    // 检查权限（移动端跳过）
+    // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
     if (!isNativeApp && !isAuthenticated) {
-      requestAuth();
       return;
     }
     setEditingId(id);
     setEditText(text);
-  }, [isAuthenticated, requestAuth, isNativeApp]);
+  }, [isAuthenticated, isNativeApp]);
 
   // 取消编辑
   const cancelEdit = useCallback(() => {
@@ -353,9 +344,8 @@ export default function Home() {
 
   // 保存编辑
   const saveEdit = useCallback(async (id: string, updates: Partial<Todo> = {}) => {
-    // 检查权限（移动端跳过）
+    // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
     if (!isNativeApp && !isAuthenticated) {
-      requestAuth();
       return;
     }
     
@@ -387,10 +377,7 @@ export default function Home() {
         // Web 端使用 API
         const response = await fetch('/api/todos', {
           method: 'PUT',
-          headers: { 
-            'Content-Type': 'application/json',
-            ...getAuthHeaders()
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(finalUpdates),
         });
         const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to update todo');
@@ -401,7 +388,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to update todo:', error);
     }
-  }, [editText, todos, cancelEdit, editingId, getAuthHeaders, isAuthenticated, requestAuth, isNativeApp, hapticFeedback]);
+  }, [editText, todos, cancelEdit, editingId, isAuthenticated, isNativeApp, hapticFeedback]);
 
   const updateTodoPriority = useCallback((id: string, priority: Priority) => {
     saveEdit(id, { priority });
@@ -580,31 +567,40 @@ export default function Home() {
     completed: todos.filter((t) => t.completed).length,
   }), [todos]);
 
+  // 登录 gate（仅 Web 端）：探测中显示加载态，未登录展示登录/注册界面，不加载任何数据。
+  // 用 isMobileApp() 直接判断，避免移动端首帧（isNativeApp 状态尚未由 effect 置位）误入 gate。
+  if (!isMobileApp()) {
+    if (isChecking) {
+      return (
+        <main className="min-h-screen bg-light-primary flex items-center justify-center transition-colors duration-500">
+          <Loader className="animate-spin text-blue-500" size={40} />
+        </main>
+      );
+    }
+    if (!isAuthenticated) {
+      return <AuthModal />;
+    }
+  }
+
   return (
     <main className="min-h-screen bg-light-primary transition-colors duration-500">
       {/* Settings & Analytics Buttons (Fixed Top Right) */}
       <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex flex-col gap-3">
-        {/* Auth Status Indicator */}
-        <motion.button
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={isAuthenticated ? logout : requestAuth}
-          className={`p-3 backdrop-blur-xl rounded-2xl border shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer ${
-            isAuthenticated 
-              ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-300 dark:border-emerald-700' 
-              : 'bg-amber-500/10 dark:bg-amber-500/20 border-amber-300 dark:border-amber-700'
-          }`}
-          title={isAuthenticated ? t.logout : t.authRequired}
-        >
-          {isAuthenticated ? (
-            <ShieldCheck size={22} className="text-emerald-600 dark:text-emerald-400" />
-          ) : (
-            <ShieldOff size={22} className="text-amber-600 dark:text-amber-400" />
-          )}
-        </motion.button>
+        {/* Logout（仅 Web 端；移动端为本地模式，无登录概念） */}
+        {!isNativeApp && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => logout()}
+            className="p-3 backdrop-blur-xl rounded-2xl border shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-300 dark:border-emerald-700"
+            title={t.logout}
+          >
+            <LogOut size={22} className="text-emerald-600 dark:text-emerald-400" />
+          </motion.button>
+        )}
         <motion.button
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: 1, scale: 1 }}

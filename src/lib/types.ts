@@ -28,7 +28,8 @@ export interface Stats {
 
 // AI Chat Types
 export type ChatRole = 'user' | 'assistant' | 'system';
-export type AIModelType = 'glm4' | 'deepseek_v3.1';
+// 模型 id 现在直接来自网关（OpenAI 兼容），是真实模型名，因此放宽为 string
+export type AIModelType = string;
 
 // AI 操作类型 - 统一的操作接口
 export interface AIActions {
@@ -90,11 +91,8 @@ export interface ChatSession {
 export interface AIConfig {
   apiKey: string;
   baseUrl: string;
-  models: {
-    glm4: string;
-    deepseek_v3_1: string;
-  };
-  defaultModel: AIModelType;
+  // 模型列表动态从网关 /v1/models 拉取，这里只保留默认模型
+  defaultModel: string;
   temperature: number;
   maxTokens: number;
   timeout: number;

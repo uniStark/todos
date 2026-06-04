@@ -10,17 +10,18 @@ services:
     environment:
       - NODE_ENV=production
       - DATA_DIR=/app/data
-      # 设置访问密码；生产环境请显式配置，留空会禁用受保护写操作
-      - AUTH_PASSWORD=${AUTH_PASSWORD:-}
-      # AI 大模型配置 (SiliconFlow API，可选；留空时 AI 功能不可用)
+      # 注册控制：
+      #  - ALLOW_REGISTRATION=true 才开放公开注册（数据库为空时首个用户始终放行作引导）
+      #  - 设置 INVITE_CODE 后改为“凭邀请码注册”（开放注册但需提供正确邀请码）
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
+      - INVITE_CODE=${INVITE_CODE:-}
+      # AI（任意 OpenAI 兼容网关，可选；AI_API_KEY 留空则 AI 功能不可用，模型列表动态从 /v1/models 拉取）
       - AI_API_KEY=${AI_API_KEY:-}
-      - AI_BASE_URL=${AI_BASE_URL:-https://api.siliconflow.cn/v1}
-      - AI_MODEL_GLM4=${AI_MODEL_GLM4:-zai-org/GLM-4.6}
-      - AI_MODEL_DEEPSEEK=${AI_MODEL_DEEPSEEK:-deepseek-ai/DeepSeek-V3.1-Terminus}
-      - AI_DEFAULT_MODEL=${AI_DEFAULT_MODEL:-deepseek_v3.1}
+      - AI_BASE_URL=${AI_BASE_URL:-https://api.openai.com/v1}
+      - AI_DEFAULT_MODEL=${AI_DEFAULT_MODEL:-gpt-4o-mini}
       - AI_TEMPERATURE=${AI_TEMPERATURE:-0.7}
       - AI_MAX_TOKENS=${AI_MAX_TOKENS:-2000}
-      - AI_TIMEOUT=${AI_TIMEOUT:-600}
+      - AI_TIMEOUT=${AI_TIMEOUT:-60}
     restart: always
 
 volumes:

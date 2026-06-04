@@ -39,6 +39,9 @@ const nextConfig: NextConfig = {
   
   // 转译 @lobehub/icons 包以支持 SSR
   transpilePackages: ['@lobehub/icons'],
+
+  // better-sqlite3 是原生模块，必须作为外部依赖，不能被 Next 打包（否则 .node 绑定丢失）
+  serverExternalPackages: ['better-sqlite3'],
   
   // 实验性功能
   experimental: {

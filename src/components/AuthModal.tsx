@@ -55,7 +55,7 @@ export default function AuthModal() {
   };
 
   return (
-    <main className="min-h-screen bg-light-primary flex items-center justify-center p-4 transition-colors duration-500">
+    <main className="min-h-[100dvh] bg-light-primary flex items-center justify-center p-4 py-[max(1rem,env(safe-area-inset-top))] transition-colors duration-500">
       <AnimatePresence mode="wait">
         <motion.div
           key={mode}

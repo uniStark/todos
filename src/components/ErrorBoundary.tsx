@@ -64,7 +64,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
     const t = translations[getLanguage()];
 
     return (
-      <main className="min-h-screen bg-light-primary flex items-center justify-center p-6 transition-colors duration-500">
+      <main className="min-h-[100dvh] bg-light-primary flex items-center justify-center p-6 py-[max(1.5rem,env(safe-area-inset-top))] transition-colors duration-500">
         <div className="glass-card max-w-md w-full rounded-[2rem] p-8 text-center shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
           <h1 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
             {t.errorBoundaryTitle}

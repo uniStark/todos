@@ -732,7 +732,7 @@ export default function Home() {
   if (!isMobileApp()) {
     if (isChecking) {
       return (
-        <main className="min-h-screen bg-light-primary flex items-center justify-center transition-colors duration-500">
+        <main className="min-h-[100dvh] bg-light-primary flex items-center justify-center transition-colors duration-500">
           <Loader className="animate-spin text-blue-500" size={40} />
         </main>
       );
@@ -743,9 +743,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-light-primary transition-colors duration-500">
-      {/* Settings & Analytics Buttons (Fixed Top Right) */}
-      <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex flex-col gap-3">
+    <main className="min-h-[100dvh] bg-light-primary transition-colors duration-500 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      {/* Settings & Analytics Buttons (Fixed Top Right) — 顶部避开灵动岛、右侧避开圆角安全区 */}
+      <div className="fixed top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] sm:top-[max(1.5rem,env(safe-area-inset-top))] sm:right-[max(1.5rem,env(safe-area-inset-right))] z-40 flex flex-col gap-3">
         {/* Logout（仅 Web 端；移动端为本地模式，无登录概念） */}
         {!isNativeApp && (
           <motion.button
@@ -1545,7 +1545,7 @@ export default function Home() {
             setIsAddSheetOpen(true);
             hapticFeedback('medium');
           }}
-          className="fixed bottom-24 right-6 z-[60] w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:bg-blue-700 active:bg-blue-800 ring-4 ring-white dark:ring-slate-900"
+          className="fixed bottom-24 right-[max(1.5rem,env(safe-area-inset-right))] z-[60] w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:bg-blue-700 active:bg-blue-800 ring-4 ring-white dark:ring-slate-900"
         >
           <Plus size={32} strokeWidth={3} />
         </motion.button>

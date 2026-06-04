@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SettingsProvider } from "@/contexts/SettingsContext";
@@ -38,6 +38,17 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
 };
 
+// Next 15 规范：viewport 单独用 viewport export 生成唯一一个 <meta>，
+// 避免手写 <meta viewport> 与框架默认注入的那个并存（会让 viewport-fit/maximum-scale 行为不确定）。
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover", // 关键：激活 iOS 安全区（灵动岛 / home indicator）
+  themeColor: "#3b82f6",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -45,10 +56,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
-        <meta name="theme-color" content="#3b82f6" />
-      </head>
       <body className={`${inter.className} antialiased`} suppressHydrationWarning>
         <SettingsProvider>
           <AuthProvider>

@@ -87,13 +87,10 @@ body {
 
 /* iOS 安全区域适配 */
 @supports (padding: env(safe-area-inset-top)) {
-  body {
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-  
+  /* 不在 body 上整体 padding：那样背景不会延伸到安全区（灵动岛/底部会露白），
+     且会与各页面的 100dvh 叠加导致溢出。改为：背景全屏延伸沉浸，
+     由各页面用 100dvh + 下面的 .safe-* 工具类 / 内联 env() 让“内容”避开安全区。 */
+
   /* 固定在底部的元素需要额外的安全区域 */
   .safe-bottom {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));

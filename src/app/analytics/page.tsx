@@ -76,7 +76,7 @@ export default function AnalyticsPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-light-primary selection:bg-blue-500/30">
+    <main className="min-h-[100dvh] bg-light-primary selection:bg-blue-500/30 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
         
         {/* Header Pro Max */}

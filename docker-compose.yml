@@ -38,6 +38,10 @@ services:
       - DATA_DIR=/app/data
     restart: unless-stopped
     command: ["sh", "/app/scripts/maintenance-cron.sh"]
+    # 维护容器只跑 cron、不起 web 服务，禁用从镜像继承的 web healthcheck，
+    # 否则 `fetch /api/health` 必然失败、容器被标记 unhealthy（误报）。
+    healthcheck:
+      disable: true
 
 volumes:
   todos-data:

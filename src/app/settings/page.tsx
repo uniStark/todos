@@ -92,7 +92,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-light-primary selection:bg-blue-500/30">
+    <main className="min-h-[100dvh] bg-light-primary selection:bg-blue-500/30 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
         {/* Save Notification Pro Max */}
         <AnimatePresence>
@@ -101,7 +101,7 @@ export default function SettingsPage() {
               initial={{ opacity: 0, y: -20, scale: 0.9, filter: 'blur(10px)' }}
               animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
               exit={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
-              className="fixed top-8 left-1/2 -translate-x-1/2 z-50 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-3 ring-1 ring-white/20"
+              className="fixed top-[max(2rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-50 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-3 ring-1 ring-white/20"
             >
               <div className="bg-emerald-500 rounded-full p-1">
                 <Check className="text-white" size={16} strokeWidth={4} />

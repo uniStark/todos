@@ -1,3 +1,5 @@
+import 'server-only';
+
 // 用户名规范化：trim + 转小写，约束为 3-32 位字母/数字/下划线。返回 null 表示非法。
 export function normalizeUsername(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;

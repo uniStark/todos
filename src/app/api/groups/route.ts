@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { Group } from '@/lib/types';
 import { listGroups, insertGroup, deleteGroupAndReassign } from '@/lib/db/groupsRepo';
 import { requireUser, isSameOrigin, unauthorized, forbidden } from '@/lib/auth/session';
+import { validateGroupName } from '@/lib/validation';
 
 export async function GET(request: Request) {
   const auth = requireUser(request);
@@ -21,10 +22,11 @@ export async function POST(request: Request) {
   if (!auth) return unauthorized();
 
   try {
-    const { name } = await request.json();
-    if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    const body = await request.json().catch(() => null);
+    const result = validateGroupName((body as { name?: unknown } | null)?.name);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
-    const newGroup: Group = { id: randomUUID(), name, createdAt: Date.now() };
+    const newGroup: Group = { id: randomUUID(), name: result.value, createdAt: Date.now() };
     insertGroup(auth.userId, newGroup);
     return NextResponse.json(newGroup, { status: 201 });
   } catch {

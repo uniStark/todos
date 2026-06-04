@@ -2,7 +2,16 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { Todo } from '@/lib/types';
 import { listTodos, getTodo, insertTodo, updateTodo } from '@/lib/db/todosRepo';
+import { getGroup } from '@/lib/db/groupsRepo';
 import { requireUser, isSameOrigin, unauthorized, forbidden } from '@/lib/auth/session';
+import { validateTodoCreate, validateTodoUpdate } from '@/lib/validation';
+import { DEFAULT_GROUP_ID } from '@/lib/types';
+
+// 校验 groupId 归属：非 default 的 groupId 必须属于当前用户。
+function groupIdValid(userId: string, groupId: string | undefined): boolean {
+  if (!groupId || groupId === DEFAULT_GROUP_ID) return true;
+  return getGroup(userId, groupId) !== undefined;
+}
 
 // GET - 获取当前用户的任务（仅未删除）
 export async function GET(request: Request) {
@@ -25,9 +34,15 @@ export async function POST(request: Request) {
   if (!auth) return unauthorized();
 
   try {
-    const { text, createdAt, groupId, priority, dueDate, completed, completedAt } = await request.json();
-    if (!text) {
-      return NextResponse.json({ error: 'Text is required' }, { status: 400 });
+    const body = await request.json().catch(() => null);
+    const result = validateTodoCreate(body);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    const { text, createdAt, groupId, priority, dueDate, completed, completedAt } = result.value;
+
+    if (!groupIdValid(auth.userId, groupId)) {
+      return NextResponse.json({ error: '分组不存在或不属于当前用户' }, { status: 400 });
     }
 
     const newTodo: Todo = {
@@ -35,7 +50,7 @@ export async function POST(request: Request) {
       text,
       completed: completed || false,
       createdAt: createdAt || Date.now(),
-      groupId: groupId || 'default',
+      groupId: groupId || DEFAULT_GROUP_ID,
       priority: priority || 'P2',
       dueDate,
     };
@@ -58,9 +73,15 @@ export async function PUT(request: Request) {
   if (!auth) return unauthorized();
 
   try {
-    const { id, completed, text, createdAt, completedAt, groupId, priority, dueDate } = await request.json();
-    if (!id) {
-      return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+    const body = await request.json().catch(() => null);
+    const result = validateTodoUpdate(body);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    const { id, completed, text, createdAt, completedAt, groupId, priority, dueDate } = result.value;
+
+    if (!groupIdValid(auth.userId, groupId)) {
+      return NextResponse.json({ error: '分组不存在或不属于当前用户' }, { status: 400 });
     }
 
     const existing = getTodo(auth.userId, id);

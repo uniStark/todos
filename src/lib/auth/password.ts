@@ -1,3 +1,4 @@
+import 'server-only';
 import { scrypt, randomBytes, timingSafeEqual, type ScryptOptions } from 'crypto';
 
 // 手写 Promise 包装：直接命中带 options 的 scrypt 重载，避免 promisify 推断为 3 参重载导致的类型错误

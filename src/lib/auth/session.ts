@@ -1,3 +1,4 @@
+import 'server-only';
 import { randomBytes, randomUUID, createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import {

@@ -1,3 +1,4 @@
+import 'server-only';
 import { getDb } from './index';
 import { Group, DEFAULT_GROUP_ID } from '../types';
 

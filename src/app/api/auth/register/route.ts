@@ -11,6 +11,11 @@ import {
   forbidden,
 } from '@/lib/auth/session';
 import { normalizeUsername, isValidPassword } from '@/lib/auth/validate';
+import { getClientIp, hitRateLimit } from '@/lib/rateLimit';
+
+// 注册防刷：同 IP 1 小时内最多 20 次。
+const REGISTER_LIMIT = 20;
+const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 
 // 受控注册：公开注册由 ALLOW_REGISTRATION 控制；首个用户（库为空）始终放行作为引导账户。
 function registrationAllowed(): boolean {
@@ -19,6 +24,15 @@ function registrationAllowed(): boolean {
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return forbidden();
+
+  const ip = getClientIp(request);
+  const hit = hitRateLimit(`register:ip:${ip}`, REGISTER_LIMIT, REGISTER_WINDOW_MS);
+  if (hit.limited) {
+    return NextResponse.json(
+      { error: '注册请求过于频繁，请稍后再试' },
+      { status: 429, headers: { 'Retry-After': String(hit.retryAfterSec) } }
+    );
+  }
 
   const body = await request.json().catch(() => null);
   const username = normalizeUsername(body?.username);

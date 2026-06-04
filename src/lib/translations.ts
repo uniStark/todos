@@ -119,6 +119,25 @@ export const translations = {
     glm4: 'GLM-4',
     sending: '发送中...',
     emptyChat: '开始和AI对话，它会自动识别你的待办事项',
+
+    // Toast / 错误提示
+    actionFailed: '操作失败，请重试',
+    networkError: '网络异常，请检查连接后重试',
+    addTodoFailed: '添加任务失败',
+    deleteTodoFailed: '删除任务失败',
+    updateTodoFailed: '更新任务失败',
+    toggleTodoFailed: '更新任务状态失败',
+    addGroupFailed: '添加分组失败',
+    deleteGroupFailed: '删除分组失败',
+    refreshFailed: '刷新数据失败',
+    todoAddedToast: '任务已添加',
+    todoDeletedToast: '任务已删除',
+    groupAddedToast: '分组已添加',
+    groupDeletedToast: '分组已删除',
+    errorBoundaryTitle: '页面出现了一点问题',
+    errorBoundaryDesc: '渲染时发生异常，请重试或刷新页面',
+    retry: '重试',
+    reload: '刷新页面',
   },
   en: {
     // Common
@@ -240,6 +259,25 @@ export const translations = {
     glm4: 'GLM-4',
     sending: 'Sending...',
     emptyChat: 'Start chatting with AI, it will detect your todos automatically',
+
+    // Toast / Errors
+    actionFailed: 'Action failed, please try again',
+    networkError: 'Network error, please check your connection and retry',
+    addTodoFailed: 'Failed to add task',
+    deleteTodoFailed: 'Failed to delete task',
+    updateTodoFailed: 'Failed to update task',
+    toggleTodoFailed: 'Failed to update task status',
+    addGroupFailed: 'Failed to add group',
+    deleteGroupFailed: 'Failed to delete group',
+    refreshFailed: 'Failed to refresh data',
+    todoAddedToast: 'Task added',
+    todoDeletedToast: 'Task deleted',
+    groupAddedToast: 'Group added',
+    groupDeletedToast: 'Group deleted',
+    errorBoundaryTitle: 'Something went wrong',
+    errorBoundaryDesc: 'A rendering error occurred. Please retry or reload the page.',
+    retry: 'Retry',
+    reload: 'Reload page',
   },
 };
 

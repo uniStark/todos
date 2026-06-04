@@ -53,6 +53,38 @@ const nextConfig: NextConfig = {
   env: {
     IS_MOBILE_BUILD: isMobileBuild ? 'true' : 'false',
   },
+
+  // 安全响应头。
+  // 注意：静态导出（output:'export'，移动端 Capacitor 构建）不支持 headers()，
+  // 若在 export 构建下返回 headers() 会触发 Next 报错/警告，因此 export 构建时不挂载该函数。
+  ...(isMobileBuild
+    ? {}
+    : {
+        async headers() {
+          const securityHeaders = [
+            // 禁止被任何站点 iframe 嵌入，防点击劫持
+            { key: 'X-Frame-Options', value: 'DENY' },
+            // 禁止浏览器对响应做 MIME 嗅探
+            { key: 'X-Content-Type-Options', value: 'nosniff' },
+            // 跨源时仅发送来源（scheme+host+port），不泄露完整路径
+            { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+            // 禁用本应用不需要的浏览器特性
+            {
+              key: 'Permissions-Policy',
+              value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
+            },
+          ];
+
+          // HSTS 不在应用层下发：HSTS 应由 HTTPS 终止处（反代）统一管理。
+          // 本应用部署在 openresty 反代之后（root_ssl.conf 已全站下发 Strict-Transport-Security），
+          // 应用层再加会产生重复的 HSTS 头。若你的部署不经反代/反代未设 HSTS，
+          // 可在反代或此处任一处补 HSTS（二者取其一）。
+
+          // 不设置 CSP：Next + framer-motion + lobehub 存在 inline 样式/脚本，
+          // 严格 CSP 易破坏页面，已确认不加。
+          return [{ source: '/:path*', headers: securityHeaders }];
+        },
+      }),
 };
 
 export default nextConfig;

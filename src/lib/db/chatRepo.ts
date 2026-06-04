@@ -1,3 +1,4 @@
+import 'server-only';
 import { getDb } from './index';
 import { ChatSession, ChatMessage, AIExecutionResult } from '../types';
 import { randomUUID } from 'crypto';

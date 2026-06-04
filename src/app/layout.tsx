@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ToastProvider } from "@/contexts/ToastContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import StatsTracker from "@/components/StatsTracker";
 
 const inter = Inter({
@@ -50,8 +52,10 @@ export default function RootLayout({
       <body className={`${inter.className} antialiased`} suppressHydrationWarning>
         <SettingsProvider>
           <AuthProvider>
-            <StatsTracker />
-            {children}
+            <ToastProvider>
+              <StatsTracker />
+              <ErrorBoundary>{children}</ErrorBoundary>
+            </ToastProvider>
           </AuthProvider>
         </SettingsProvider>
       </body>

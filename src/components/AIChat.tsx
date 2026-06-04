@@ -20,6 +20,7 @@ import {
 import { ChatMessage, AIExecutionResult, AIModelType } from '@/lib/types';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import { OpenAI, Gemini } from '@lobehub/icons';
 
 // 模型图标：按 model id 前缀映射到厂商 logo（lobehub/lobe-icons，github.com/lobehub/lobe-icons）
@@ -61,7 +62,8 @@ async function readJsonOrThrow<T>(response: Response, fallbackMessage: string): 
 export default function AIChat({ onRefreshTodos }: AIChatProps) {
   const { settings, updateSettings } = useSettings();
   const { isAuthenticated } = useAuth();
-  
+  const toast = useToast();
+
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -239,6 +241,7 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
     } catch (error) {
       console.error('Failed to send message:', error);
       const errorMessage = error instanceof Error ? error.message : ct.sendFailed;
+      toast.error(errorMessage);
       setMessages(prev => [
         ...prev.filter(m => m.id !== tempUserMessage.id),
         {
@@ -270,6 +273,7 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
       setMessages([]);
     } catch (error) {
       console.error('Failed to clear chat:', error);
+      toast.error(error instanceof Error ? error.message : ct.sendFailed);
     }
   };
 

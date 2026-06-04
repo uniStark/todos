@@ -1,3 +1,4 @@
+import 'server-only';
 import { getDb } from './index';
 
 export interface UserRow {

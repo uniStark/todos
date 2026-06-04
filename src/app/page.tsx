@@ -8,6 +8,7 @@ import { Trash2, Plus, Calendar, Clock, List, Loader, CheckCheck, Settings as Se
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import { translations } from '@/lib/translations';
 import { isMobileApp } from '@/lib/platform';
 import { getMobileTodos, saveMobileTodos, getMobileGroups } from '@/lib/mobileStorage';
@@ -66,6 +67,7 @@ export default function Home() {
   const router = useRouter();
   const { settings } = useSettings();
   const { isAuthenticated, isChecking, logout } = useAuth();
+  const toast = useToast();
   const t = translations[settings.language];
   const [todos, setTodos] = useState<Todo[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -85,6 +87,26 @@ export default function Home() {
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   const [isNativeApp, setIsNativeApp] = useState(false);
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  // 进行中的操作 id 集合：用于按钮 loading 态 + 去重（防重复点击）。
+  // 用 ''(空串) 代表"新增任务"这种没有具体 todo id 的操作。
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+
+  const markPending = useCallback((id: string) => {
+    setPendingIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearPending = useCallback((id: string) => {
+    setPendingIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   // 触感反馈助手
   const hapticFeedback = useCallback((type: 'light' | 'medium' | 'heavy' = 'light') => {
@@ -124,10 +146,11 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to fetch todos:', error);
+      toast.error(t.networkError);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast, t]);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -143,8 +166,9 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to fetch groups:', error);
+      toast.error(t.networkError);
     }
-  }, []);
+  }, [toast, t]);
 
   useEffect(() => {
     // Web 端依赖 cookie session，仅在已登录后加载，避免 401；移动端为本地模式，恒可加载。
@@ -168,58 +192,83 @@ export default function Home() {
 
   const addGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newGroupName.trim() || !isAuthenticated) return;
+    const name = newGroupName.trim();
+    // 去重：已有新增分组请求进行中时忽略重复提交。
+    if (!name || !isAuthenticated || pendingIds.has('add-group')) return;
 
+    markPending('add-group');
     try {
       const response = await fetch('/api/groups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newGroupName.trim() }),
+        body: JSON.stringify({ name }),
       });
       const newGroup = await readJsonOrThrow<Group>(response, 'Failed to add group');
-      setGroups([...groups, newGroup]);
+      // 用服务端返回对象（含真实 id/createdAt）写入，避免本地猜测。
+      setGroups((prev) => [...prev, newGroup]);
       setNewGroupName('');
       setIsGroupModalOpen(false);
       hapticFeedback('medium');
+      toast.success(t.groupAddedToast);
     } catch (error) {
       console.error('Failed to add group:', error);
+      toast.error(t.addGroupFailed);
+    } finally {
+      clearPending('add-group');
     }
   };
 
   const deleteGroup = async (id: string) => {
-    if (id === DEFAULT_GROUP_ID || !isAuthenticated) return;
+    if (id === DEFAULT_GROUP_ID || !isAuthenticated || pendingIds.has(`group-${id}`)) return;
+
+    // 乐观更新：先在本地移除分组并快照，失败时回滚。
+    const prevGroups = groups;
+    const prevSelected = selectedGroupId;
+    const prevActive = activeGroupId;
+
+    markPending(`group-${id}`);
+    setGroups((prev) => prev.filter((g) => g.id !== id));
+    if (selectedGroupId === id) setSelectedGroupId(DEFAULT_GROUP_ID);
+    if (activeGroupId === id) setActiveGroupId('all');
 
     try {
       const response = await fetch(`/api/groups?id=${id}`, {
         method: 'DELETE',
       });
       await ensureOk(response, 'Failed to delete group');
-      setGroups(groups.filter(g => g.id !== id));
-      if (selectedGroupId === id) setSelectedGroupId(DEFAULT_GROUP_ID);
-      if (activeGroupId === id) setActiveGroupId('all');
       hapticFeedback('heavy');
-      fetchTodos(); // 重新加载任务，因为它们的分组可能已经改变
+      toast.success(t.groupDeletedToast);
+      // 删除分组会改变其下任务的归属，需要从服务端拉取最新任务列表。
+      fetchTodos();
     } catch (error) {
       console.error('Failed to delete group:', error);
+      // 回滚分组与选择态。
+      setGroups(prevGroups);
+      setSelectedGroupId(prevSelected);
+      setActiveGroupId(prevActive);
+      toast.error(t.deleteGroupFailed);
+    } finally {
+      clearPending(`group-${id}`);
     }
   };
 
   const addTodo = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    const text = inputValue.trim();
+    if (!text) return;
 
     // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
     if (!isNativeApp && !isAuthenticated) {
       return;
     }
 
-    try {
-      if (isNativeApp) {
-        // 移动端使用本地存储
+    if (isNativeApp) {
+      // 移动端使用本地存储（保持原逻辑，不引入乐观更新/回滚）
+      try {
         const currentTodos = await getMobileTodos();
         const newTodo: Todo = {
           id: crypto.randomUUID(),
-          text: inputValue.trim(),
+          text,
           completed: false,
           createdAt: Date.now(),
           groupId: settings.enableGroups ? selectedGroupId : 'default',
@@ -227,36 +276,59 @@ export default function Home() {
         };
         currentTodos.push(newTodo);
         await saveMobileTodos(currentTodos);
-        setTodos([...todos.filter(t => !t.deleted), newTodo]);
-      } else {
-        // Web 端使用 API
-        const requestBody: Record<string, unknown> = { 
-          text: inputValue,
-        };
-        
-        if (settings.enableGroups) {
-          requestBody.groupId = selectedGroupId;
-        }
-        
-        if (settings.enablePriority) {
-          requestBody.priority = selectedPriority;
-        }
-
-        const response = await fetch('/api/todos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        });
-        const newTodo = await readJsonOrThrow<Todo>(response, 'Failed to add todo');
-        setTodos([...todos, newTodo]);
+        setTodos(currentTodos.filter((t) => !t.deleted));
+        setInputValue('');
+        setIsAddSheetOpen(false);
+        hapticFeedback('medium');
+      } catch (error) {
+        console.error('Failed to add todo:', error);
       }
-      setInputValue('');
-      setIsAddSheetOpen(false);
-      hapticFeedback('medium');
+      return;
+    }
+
+    // 去重：已有新增请求进行中时忽略重复提交。
+    if (pendingIds.has('add-todo')) return;
+
+    // Web 端乐观更新：先插入临时 todo，立刻清空输入；成功后用服务端对象校正。
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimisticTodo: Todo = {
+      id: tempId,
+      text,
+      completed: false,
+      createdAt: Date.now(),
+      groupId: settings.enableGroups ? selectedGroupId : DEFAULT_GROUP_ID,
+      priority: settings.enablePriority ? selectedPriority : 'P2',
+    };
+
+    markPending('add-todo');
+    setTodos((prev) => [...prev, optimisticTodo]);
+    setInputValue('');
+    setIsAddSheetOpen(false);
+    hapticFeedback('medium');
+
+    try {
+      const requestBody: Record<string, unknown> = { text };
+      if (settings.enableGroups) requestBody.groupId = selectedGroupId;
+      if (settings.enablePriority) requestBody.priority = selectedPriority;
+
+      const response = await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+      const newTodo = await readJsonOrThrow<Todo>(response, 'Failed to add todo');
+      // 用服务端返回对象（真实 id/createdAt）替换临时 todo。
+      setTodos((prev) => prev.map((t) => (t.id === tempId ? newTodo : t)));
     } catch (error) {
       console.error('Failed to add todo:', error);
+      // 回滚：移除临时 todo，并把输入还原方便重试。
+      setTodos((prev) => prev.filter((t) => t.id !== tempId));
+      setInputValue(text);
+      toast.error(t.addTodoFailed);
+    } finally {
+      clearPending('add-todo');
     }
-  }, [inputValue, todos, isAuthenticated, selectedGroupId, selectedPriority, settings.enableGroups, settings.enablePriority, isNativeApp, hapticFeedback]);
+  }, [inputValue, isAuthenticated, selectedGroupId, selectedPriority, settings.enableGroups, settings.enablePriority, isNativeApp, hapticFeedback, pendingIds, markPending, clearPending, toast, t]);
 
   const toggleTodo = useCallback(async (id: string, completed: boolean) => {
     // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
@@ -264,11 +336,11 @@ export default function Home() {
       return;
     }
 
-    try {
-      if (isNativeApp) {
-        // 移动端使用本地存储
+    if (isNativeApp) {
+      // 移动端使用本地存储（保持原逻辑）
+      try {
         const currentTodos = await getMobileTodos();
-        const index = currentTodos.findIndex(t => t.id === id);
+        const index = currentTodos.findIndex((t) => t.id === id);
         if (index !== -1) {
           currentTodos[index].completed = !completed;
           if (!completed) {
@@ -277,23 +349,55 @@ export default function Home() {
             delete currentTodos[index].completedAt;
           }
           await saveMobileTodos(currentTodos);
-          setTodos(currentTodos.filter(t => !t.deleted));
+          setTodos(currentTodos.filter((t) => !t.deleted));
         }
-      } else {
-        // Web 端使用 API
-        const response = await fetch('/api/todos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, completed: !completed }),
-        });
-        const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to toggle todo');
-        setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
+        hapticFeedback('light');
+      } catch (error) {
+        console.error('Failed to toggle todo:', error);
       }
-      hapticFeedback('light');
+      return;
+    }
+
+    // 去重：同一 todo 正在切换时忽略重复点击。临时 todo（未落库）也不允许操作。
+    if (pendingIds.has(id) || id.startsWith('temp-')) return;
+
+    // Web 端乐观更新：立即翻转完成态（含 completedAt），失败回滚。
+    const newCompleted = !completed;
+    markPending(id);
+    // 在函数式更新里捕获操作前的整条 todo，失败时整体还原（含 completedAt，避免回滚丢字段）
+    let prevTodo: Todo | undefined;
+    setTodos((prev) => {
+      prevTodo = prev.find((td) => td.id === id);
+      return prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              completed: newCompleted,
+              ...(newCompleted ? { completedAt: Date.now() } : { completedAt: undefined }),
+            }
+          : t
+      );
+    });
+    hapticFeedback('light');
+
+    try {
+      const response = await fetch('/api/todos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, completed: newCompleted }),
+      });
+      const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to toggle todo');
+      // 用服务端规范化数据校正（如真实 completedAt）。
+      setTodos((prev) => prev.map((t) => (t.id === id ? updatedTodo : t)));
     } catch (error) {
       console.error('Failed to toggle todo:', error);
+      // 整体还原操作前的快照（含 completedAt 等字段），函数式更新避免覆盖并发操作。
+      setTodos((prev) => prev.map((td) => (td.id === id && prevTodo ? prevTodo : td)));
+      toast.error(t.toggleTodoFailed);
+    } finally {
+      clearPending(id);
     }
-  }, [todos, isAuthenticated, isNativeApp, hapticFeedback]);
+  }, [isAuthenticated, isNativeApp, hapticFeedback, pendingIds, markPending, clearPending, toast, t]);
 
   const deleteTodo = useCallback(async (id: string) => {
     // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
@@ -301,30 +405,63 @@ export default function Home() {
       return;
     }
 
-    try {
-      if (isNativeApp) {
-        // 移动端使用本地存储（软删除）
+    if (isNativeApp) {
+      // 移动端使用本地存储（软删除，保持原逻辑）
+      try {
         const currentTodos = await getMobileTodos();
-        const index = currentTodos.findIndex(t => t.id === id);
+        const index = currentTodos.findIndex((t) => t.id === id);
         if (index !== -1) {
           currentTodos[index].deleted = true;
           currentTodos[index].deletedAt = Date.now();
           await saveMobileTodos(currentTodos);
-          setTodos(currentTodos.filter(t => !t.deleted));
+          setTodos(currentTodos.filter((t) => !t.deleted));
         }
-      } else {
-        // Web 端使用 API
-        const response = await fetch(`/api/todos?id=${id}`, {
-          method: 'DELETE',
-        });
-        await ensureOk(response, 'Failed to delete todo');
-        setTodos(todos.filter((t) => t.id !== id));
+        hapticFeedback('heavy');
+      } catch (error) {
+        console.error('Failed to delete todo:', error);
       }
-      hapticFeedback('heavy');
+      return;
+    }
+
+    // 去重：同一 todo 删除进行中时忽略重复点击；临时 todo 不允许删除。
+    if (pendingIds.has(id) || id.startsWith('temp-')) return;
+
+    // Web 端乐观更新：记录被删项及其位置，先本地移除，失败时按原位置还原。
+    let removedTodo: Todo | undefined;
+    let removedIndex = -1;
+    markPending(id);
+    setTodos((prev) => {
+      removedIndex = prev.findIndex((t) => t.id === id);
+      if (removedIndex === -1) return prev;
+      removedTodo = prev[removedIndex];
+      return prev.filter((t) => t.id !== id);
+    });
+    hapticFeedback('heavy');
+
+    try {
+      const response = await fetch(`/api/todos?id=${id}`, {
+        method: 'DELETE',
+      });
+      await ensureOk(response, 'Failed to delete todo');
+      toast.success(t.todoDeletedToast);
     } catch (error) {
       console.error('Failed to delete todo:', error);
+      // 回滚：把被删 todo 插回原位置（函数式，避免覆盖并发操作）。
+      if (removedTodo) {
+        const restored = removedTodo;
+        const at = removedIndex;
+        setTodos((prev) => {
+          if (prev.some((t) => t.id === restored.id)) return prev;
+          const next = [...prev];
+          next.splice(Math.min(at, next.length), 0, restored);
+          return next;
+        });
+      }
+      toast.error(t.deleteTodoFailed);
+    } finally {
+      clearPending(id);
     }
-  }, [todos, isAuthenticated, isNativeApp, hapticFeedback]);
+  }, [isAuthenticated, isNativeApp, hapticFeedback, pendingIds, markPending, clearPending, toast, t]);
 
   // 开始编辑
   const startEdit = useCallback((id: string, text: string) => {
@@ -363,32 +500,54 @@ export default function Home() {
       return;
     }
 
-    try {
-      if (isNativeApp) {
-        // 移动端使用本地存储
+    if (isNativeApp) {
+      // 移动端使用本地存储（保持原逻辑）
+      try {
         const currentTodos = await getMobileTodos();
-        const index = currentTodos.findIndex(t => t.id === id);
+        const index = currentTodos.findIndex((t) => t.id === id);
         if (index !== -1) {
           currentTodos[index] = { ...currentTodos[index], ...finalUpdates };
           await saveMobileTodos(currentTodos);
-          setTodos(currentTodos.filter(t => !t.deleted));
+          setTodos(currentTodos.filter((t) => !t.deleted));
         }
-      } else {
-        // Web 端使用 API
-        const response = await fetch('/api/todos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(finalUpdates),
-        });
-        const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to update todo');
-        setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
+        if (id === editingId) cancelEdit();
+        hapticFeedback('medium');
+      } catch (error) {
+        console.error('Failed to update todo:', error);
       }
-      if (id === editingId) cancelEdit();
-      hapticFeedback('medium');
+      return;
+    }
+
+    // 去重：同一 todo 更新进行中时忽略；临时 todo（未落库）不允许更新。
+    if (pendingIds.has(id) || id.startsWith('temp-')) return;
+
+    // Web 端乐观更新：先本地合并（含 text/priority/groupId 等跨组移动），快照原值供回滚。
+    const prevTodo = todo;
+    markPending(id);
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...finalUpdates } : t))
+    );
+    if (id === editingId) cancelEdit();
+    hapticFeedback('medium');
+
+    try {
+      const response = await fetch('/api/todos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalUpdates),
+      });
+      const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to update todo');
+      // 用服务端规范化数据校正。
+      setTodos((prev) => prev.map((t) => (t.id === id ? updatedTodo : t)));
     } catch (error) {
       console.error('Failed to update todo:', error);
+      // 回滚到操作前的完整快照（含 groupId/priority/text）。
+      setTodos((prev) => prev.map((t) => (t.id === id ? prevTodo : t)));
+      toast.error(t.updateTodoFailed);
+    } finally {
+      clearPending(id);
     }
-  }, [editText, todos, cancelEdit, editingId, isAuthenticated, isNativeApp, hapticFeedback]);
+  }, [editText, todos, cancelEdit, editingId, isAuthenticated, isNativeApp, hapticFeedback, pendingIds, markPending, clearPending, toast, t]);
 
   const updateTodoPriority = useCallback((id: string, priority: Priority) => {
     saveEdit(id, { priority });
@@ -422,8 +581,9 @@ export default function Home() {
       console.log('[AI] Refreshed todos and groups');
     } catch (error) {
       console.error('Failed to refresh from AI:', error);
+      toast.error(t.refreshFailed);
     }
-  }, [isNativeApp]);
+  }, [isNativeApp, toast, t]);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -707,10 +867,14 @@ export default function Home() {
                 />
                 <button
                   type="submit"
-                  disabled={!inputValue.trim()}
+                  disabled={!inputValue.trim() || (!isNativeApp && pendingIds.has('add-todo'))}
                   className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 sm:px-8 py-4 rounded-[1.5rem] font-bold flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer shadow-lg active:scale-95 hover:shadow-xl"
                 >
-                  <Plus size={22} strokeWidth={3} />
+                  {!isNativeApp && pendingIds.has('add-todo') ? (
+                    <Loader size={22} strokeWidth={3} className="animate-spin" />
+                  ) : (
+                    <Plus size={22} strokeWidth={3} />
+                  )}
                   <span className="hidden sm:inline text-sm uppercase tracking-wider">{t.addTask}</span>
                 </button>
               </div>
@@ -893,13 +1057,14 @@ export default function Home() {
                       <div className="flex items-center gap-3 sm:gap-6">
                         <motion.button
                           whileTap={{ scale: 0.8 }}
+                          disabled={!isNativeApp && pendingIds.has(todo.id)}
                           onClick={() => {
                             toggleTodo(todo.id, todo.completed);
                             hapticFeedback('light');
                           }}
-                          className={`flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 cursor-pointer ${
-                            todo.completed 
-                              ? 'bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/20' 
+                          className={`flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 cursor-pointer disabled:cursor-not-allowed ${
+                            todo.completed
+                              ? 'bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/20'
                               : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-400'
                           }`}
                         >
@@ -1004,11 +1169,12 @@ export default function Home() {
                                     </motion.button>
                                     <motion.button
                                       whileTap={{ scale: 0.9 }}
+                                      disabled={!isNativeApp && pendingIds.has(todo.id)}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         deleteTodo(todo.id);
                                       }}
-                                      className="rounded-xl p-1.5 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
+                                      className="rounded-xl p-1.5 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 disabled:opacity-40 disabled:cursor-not-allowed"
                                       aria-label={settings.language === 'zh' ? '删除任务' : 'Delete task'}
                                     >
                                       <Trash2 size={16} strokeWidth={2.5} />
@@ -1061,11 +1227,12 @@ export default function Home() {
                             <motion.button
                               whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
                               whileTap={{ scale: 0.9 }}
+                              disabled={!isNativeApp && pendingIds.has(todo.id)}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 deleteTodo(todo.id);
                               }}
-                              className="p-2 sm:p-3 rounded-2xl text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-all duration-300 cursor-pointer"
+                              className="p-2 sm:p-3 rounded-2xl text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-all duration-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Trash2 size={isMobile ? 18 : 20} strokeWidth={2.5} />
                             </motion.button>
@@ -1207,10 +1374,14 @@ export default function Home() {
                 />
                 <button
                   type="submit"
-                  disabled={!newGroupName.trim() || !isAuthenticated}
+                  disabled={!newGroupName.trim() || !isAuthenticated || pendingIds.has('add-group')}
                   className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg hover:shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-20 cursor-pointer"
                 >
-                  <Plus size={20} strokeWidth={3} />
+                  {pendingIds.has('add-group') ? (
+                    <Loader size={20} strokeWidth={3} className="animate-spin" />
+                  ) : (
+                    <Plus size={20} strokeWidth={3} />
+                  )}
                 </button>
               </form>
 
@@ -1350,9 +1521,12 @@ export default function Home() {
 
                 <button
                   type="submit"
-                  disabled={!inputValue.trim()}
-                  className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-5 rounded-2xl font-black text-lg uppercase tracking-widest transition-all shadow-xl active:scale-95 disabled:opacity-20"
+                  disabled={!inputValue.trim() || (!isNativeApp && pendingIds.has('add-todo'))}
+                  className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-5 rounded-2xl font-black text-lg uppercase tracking-widest transition-all shadow-xl active:scale-95 disabled:opacity-20 flex items-center justify-center gap-2"
                 >
+                  {!isNativeApp && pendingIds.has('add-todo') && (
+                    <Loader size={20} strokeWidth={3} className="animate-spin" />
+                  )}
                   {t.addTask}
                 </button>
               </form>

@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: stark-todo-list:latest
     ports:
       - "3002:3000"
     volumes:
@@ -23,6 +24,20 @@ services:
       - AI_MAX_TOKENS=${AI_MAX_TOKENS:-2000}
       - AI_TIMEOUT=${AI_TIMEOUT:-60}
     restart: always
+
+  # 维护 sidecar：独立容器跑定时维护（清过期 session + 软删回收 + SQLite 备份），
+  # 不绑 web 进程生命周期（避免在 Next 进程内用 setInterval）。复用 app 镜像（含 node + better-sqlite3 + /app/scripts）。
+  maintenance:
+    image: stark-todo-list:latest
+    depends_on:
+      - app
+    volumes:
+      - todos-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - DATA_DIR=/app/data
+    restart: unless-stopped
+    command: ["sh", "/app/scripts/maintenance-cron.sh"]
 
 volumes:
   todos-data:

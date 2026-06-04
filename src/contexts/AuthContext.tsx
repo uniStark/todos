@@ -18,6 +18,7 @@ interface AuthContextType {
   register: (username: string, password: string, inviteCode?: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<AuthResult>;
   // 向后兼容：旧调用点仍可能引用，但 cookie 同源自动携带，无需任何头部。
   getAuthHeaders: () => Record<string, string>;
 }
@@ -33,6 +34,7 @@ const defaultContextValue: AuthContextType = {
   register: async () => ({ ok: false }),
   logout: async () => {},
   refresh: async () => {},
+  changePassword: async () => ({ ok: false }),
   getAuthHeaders: () => ({}),
 };
 
@@ -141,6 +143,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const changePassword = useCallback(async (oldPassword: string, newPassword: string): Promise<AuthResult> => {
+    try {
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      if (!response.ok) {
+        return { ok: false, error: await extractError(response, 'Change password failed') };
+      }
+      return { ok: true };
+    } catch (error) {
+      console.error('[Auth] Change password request failed:', error);
+      return { ok: false, error: 'Network error' };
+    }
+  }, []);
+
   // cookie 同源自动携带，保留空实现以兼容历史调用点。
   const getAuthHeaders = useCallback((): Record<string, string> => ({}), []);
 
@@ -154,6 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     logout,
     refresh,
+    changePassword,
     getAuthHeaders,
   };
 

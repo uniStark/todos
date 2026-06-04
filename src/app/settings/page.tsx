@@ -3,22 +3,34 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Globe, Type, Clock, Sun, Moon, Monitor, Check, Tag, FolderOpen, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ArrowLeft, Globe, Type, Clock, Sun, Moon, Monitor, Check, Tag, FolderOpen, ToggleLeft, ToggleRight, UserCircle, KeyRound, ShieldAlert, Code2 } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { isMobileApp } from '@/lib/platform';
 import { translations, Language } from '@/lib/translations';
 import { TIMEZONES } from '@/lib/timezones';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { settings, updateSettings } = useSettings();
+  const { username, isAuthenticated, changePassword } = useAuth();
   const [tempLogoText, setTempLogoText] = useState(settings.logoText);
   const [showSaved, setShowSaved] = useState(false);
+  const [isNativeApp, setIsNativeApp] = useState<boolean | null>(null);
+  const [oldPwd, setOldPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [pwdError, setPwdError] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
   const t = translations[settings.language];
 
   // Update tempLogoText when settings.logoText changes
   useEffect(() => {
     setTempLogoText(settings.logoText);
   }, [settings.logoText]);
+
+  useEffect(() => {
+    setIsNativeApp(isMobileApp());
+  }, []);
 
   const handleSave = () => {
     updateSettings({ logoText: tempLogoText });
@@ -53,6 +65,30 @@ export default function SettingsPage() {
   const handleGroupsToggle = () => {
     updateSettings({ enableGroups: !settings.enableGroups });
     showSaveNotification();
+  };
+
+  const handleApiDocsToggle = () => {
+    updateSettings({ showApiDocs: !settings.showApiDocs });
+    showSaveNotification();
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError('');
+    if (newPwd.length < 6) {
+      setPwdError(t.passwordTooShort);
+      return;
+    }
+    setPwdLoading(true);
+    const result = await changePassword(oldPwd, newPwd);
+    setPwdLoading(false);
+    if (result.ok) {
+      setOldPwd('');
+      setNewPwd('');
+      showSaveNotification();
+    } else {
+      setPwdError(result.error || t.changePasswordFailed);
+    }
   };
 
   return (
@@ -233,6 +269,36 @@ export default function SettingsPage() {
               )
             },
             {
+              id: 'apiDocs',
+              icon: Code2,
+              title: settings.language === 'zh' ? 'API 文档入口' : 'API Docs Icon',
+              desc: settings.language === 'zh' ? '显示或隐藏首页 API 文档图标' : 'Show/hide the API docs icon on home',
+              color: 'violet',
+              content: (
+                <button
+                  onClick={handleApiDocsToggle}
+                  className={`w-full flex items-center justify-between p-5 rounded-2xl transition-all cursor-pointer ring-1 ring-inset ${
+                    settings.showApiDocs
+                      ? 'bg-violet-500/10 dark:bg-violet-500/20 ring-violet-300 dark:ring-violet-700'
+                      : 'bg-slate-100 dark:bg-slate-800/50 ring-slate-200 dark:ring-slate-700'
+                  }`}
+                >
+                  <span className={`text-sm font-bold ${
+                    settings.showApiDocs ? 'text-violet-600 dark:text-violet-400' : 'text-slate-400'
+                  }`}>
+                    {settings.showApiDocs
+                      ? (settings.language === 'zh' ? '已显示' : 'Shown')
+                      : (settings.language === 'zh' ? '已隐藏' : 'Hidden')}
+                  </span>
+                  {settings.showApiDocs ? (
+                    <ToggleRight size={32} className="text-violet-500" />
+                  ) : (
+                    <ToggleLeft size={32} className="text-slate-400" />
+                  )}
+                </button>
+              )
+            },
+            {
               id: 'theme',
               icon: Sun,
               title: t.themeMode,
@@ -285,6 +351,78 @@ export default function SettingsPage() {
               {section.content}
             </motion.div>
           ))}
+
+          {/* 账号区块：仅 Web 端（移动端为本地存储，无服务器账号）且已登录时显示 */}
+          {isNativeApp === false && isAuthenticated && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-6 sm:p-8 rounded-[2.5rem] ring-1 ring-black/5 dark:ring-white/5"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 bg-indigo-500/10 rounded-2xl">
+                  <UserCircle className="text-indigo-500" size={24} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">
+                    {t.account}
+                  </h3>
+                  <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">
+                    {t.accountDesc}
+                  </p>
+                </div>
+              </div>
+
+              {/* 当前登录账号 */}
+              <div className="mb-5 flex items-center justify-between p-4 bg-slate-100 dark:bg-slate-900/50 rounded-2xl">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  {t.currentAccount}
+                </span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">{username ?? '—'}</span>
+              </div>
+
+              {/* 修改密码 */}
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                <input
+                  type="password"
+                  value={oldPwd}
+                  onChange={(e) => { setOldPwd(e.target.value); setPwdError(''); }}
+                  placeholder={t.currentPassword}
+                  autoComplete="current-password"
+                  className="w-full bg-slate-100 dark:bg-slate-900/50 border-none rounded-2xl px-6 py-4 text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500 transition-all"
+                />
+                <input
+                  type="password"
+                  value={newPwd}
+                  onChange={(e) => { setNewPwd(e.target.value); setPwdError(''); }}
+                  placeholder={t.newPassword}
+                  autoComplete="new-password"
+                  className="w-full bg-slate-100 dark:bg-slate-900/50 border-none rounded-2xl px-6 py-4 text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500 transition-all"
+                />
+                <AnimatePresence>
+                  {pwdError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="flex items-center gap-2 px-4 py-3 bg-red-500/10 rounded-xl"
+                    >
+                      <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
+                      <span className="text-xs font-bold text-red-600 dark:text-red-400">{pwdError}</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <button
+                  type="submit"
+                  disabled={pwdLoading || !oldPwd.trim() || !newPwd.trim()}
+                  className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-20 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all cursor-pointer shadow-lg hover:shadow-xl active:scale-95"
+                >
+                  <KeyRound size={16} strokeWidth={2.5} />
+                  {pwdLoading ? t.changingPassword : t.changePassword}
+                </button>
+              </form>
+            </motion.div>
+          )}
         </div>
       </div>
     </main>

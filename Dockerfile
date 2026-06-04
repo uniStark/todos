@@ -71,6 +71,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # 复用 builder 裁剪后的生产 node_modules（含 better-sqlite3 原生绑定及传递依赖），补全 standalone 的空 node_modules。
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
+# 维护脚本（供 maintenance sidecar 容器调用；app 容器不使用，一并打包便于复用同一镜像）
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+
 # 数据目录（SQLite 数据库与旧 JSON 都存于此）
 RUN mkdir -p /app/data && \
     chown -R nextjs:nodejs /app/data && \

@@ -54,6 +54,17 @@ export const translations = {
     createdLabel: '已创建',
     completedLabel: '已完成',
 
+    // Account
+    account: '账号',
+    accountDesc: '当前登录账号与密码',
+    currentAccount: '当前账号',
+    currentPassword: '当前密码',
+    newPassword: '新密码（至少 6 位）',
+    changePassword: '修改密码',
+    changingPassword: '修改中...',
+    changePasswordFailed: '修改密码失败',
+    passwordTooShort: '新密码至少 6 位',
+
     // Notifications & Status
     settingsSaved: '设置已保存',
     syncingTasks: '正在同步任务...',
@@ -195,6 +206,17 @@ export const translations = {
     completedLabel: 'Completed',
 
     // Notifications & Status
+    // Account
+    account: 'Account',
+    accountDesc: 'Current account & password',
+    currentAccount: 'Current account',
+    currentPassword: 'Current password',
+    newPassword: 'New password (min 6 chars)',
+    changePassword: 'Change password',
+    changingPassword: 'Changing...',
+    changePasswordFailed: 'Failed to change password',
+    passwordTooShort: 'New password must be at least 6 characters',
+
     settingsSaved: 'Settings Saved',
     syncingTasks: 'Syncing tasks...',
     noActiveTasks: 'No active tasks',

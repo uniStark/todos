@@ -783,8 +783,8 @@ export default function Home() {
         >
           <BarChart3 size={22} strokeWidth={2.5} />
         </motion.button>
-        {/* API Docs - 仅在 Web 端显示 */}
-        {!isNativeApp && (
+        {/* API Docs - 仅在 Web 端 + 设置开启时显示 */}
+        {!isNativeApp && settings.showApiDocs && (
           <motion.button
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}

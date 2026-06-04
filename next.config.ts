@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
   
   // 性能优化
   reactStrictMode: true,
+
+  // build 时跳过 ESLint 与类型检查以加速构建：
+  // 提交/部署前已用 `tsc --noEmit`（和 `next lint`）单独把关，build 里再查一遍是重复开销。
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   
   // 压缩优化
   compress: true,

@@ -37,3 +37,7 @@ export function countUsers(): number {
   const row = getDb().prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number };
   return row.n;
 }
+
+export function updatePassword(id: string, passwordHash: string): void {
+  getDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
+}

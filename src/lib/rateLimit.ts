@@ -100,6 +100,22 @@ export function hitRateLimit(
   return { limited: false, retryAfterSec: 0 };
 }
 
+// 只读检查某 key 是否已达上限（不计数）。用于「失败才计数」的限流语义：
+// 入口先 isLimited 判断是否拒绝，验证失败时才 hitRateLimit 记一次失败，成功则 resetRateLimit。
+export function isLimited(
+  key: string,
+  limit: number,
+  windowMs: number
+): { limited: boolean; retryAfterSec: number } {
+  const now = Date.now();
+  const bucket = buckets.get(key);
+  if (!bucket || now - bucket.windowStart >= windowMs) {
+    return { limited: false, retryAfterSec: 0 };
+  }
+  const remainingMs = Math.max(0, windowMs - (now - bucket.windowStart));
+  return { limited: bucket.count >= limit, retryAfterSec: Math.max(1, Math.ceil(remainingMs / 1000)) };
+}
+
 // 清除某 key 的计数（例如登录成功后清掉该 IP/用户名的失败计数）。
 export function resetRateLimit(key: string): void {
   buckets.delete(key);

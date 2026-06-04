@@ -12,6 +12,8 @@ export interface Settings {
   // 功能开关
   enablePriority: boolean;
   enableGroups: boolean;
+  // 是否在首页显示 API 文档入口图标
+  showApiDocs: boolean;
 }
 
 interface SettingsContextType {
@@ -29,6 +31,7 @@ const defaultSettings: Settings = {
   // 功能开关
   enablePriority: true,
   enableGroups: true,
+  showApiDocs: true,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);

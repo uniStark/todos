@@ -862,21 +862,35 @@ export default function Home() {
                     resizeTextarea(e.currentTarget);
                   }}
                   placeholder={t.addTaskPlaceholder}
+                  onKeyDown={(e) => {
+                    // ⌘/Ctrl + Enter 提交；普通 Enter 仍为换行
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      e.currentTarget.form?.requestSubmit();
+                    }
+                  }}
                   rows={1}
                   className="flex-1 min-h-[56px] max-h-40 resize-none overflow-hidden bg-transparent border-none rounded-2xl px-5 py-4 text-base sm:text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all"
                 />
-                <button
-                  type="submit"
-                  disabled={!inputValue.trim() || (!isNativeApp && pendingIds.has('add-todo'))}
-                  className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 sm:px-8 py-4 rounded-[1.5rem] font-bold flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer shadow-lg active:scale-95 hover:shadow-xl"
-                >
-                  {!isNativeApp && pendingIds.has('add-todo') ? (
-                    <Loader size={22} strokeWidth={3} className="animate-spin" />
-                  ) : (
-                    <Plus size={22} strokeWidth={3} />
-                  )}
-                  <span className="hidden sm:inline text-sm uppercase tracking-wider">{t.addTask}</span>
-                </button>
+                <div className="relative group/addbtn">
+                  <button
+                    type="submit"
+                    disabled={!inputValue.trim() || (!isNativeApp && pendingIds.has('add-todo'))}
+                    className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 sm:px-8 py-4 rounded-[1.5rem] font-bold flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer shadow-lg active:scale-95 hover:shadow-xl"
+                  >
+                    {!isNativeApp && pendingIds.has('add-todo') ? (
+                      <Loader size={22} strokeWidth={3} className="animate-spin" />
+                    ) : (
+                      <Plus size={22} strokeWidth={3} />
+                    )}
+                    <span className="hidden sm:inline text-sm uppercase tracking-wider">{t.addTask}</span>
+                  </button>
+                  {/* 悬浮提示快捷键（仅桌面有鼠标时有意义）*/}
+                  <span className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 z-20 hidden md:block whitespace-nowrap rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold px-2.5 py-1.5 opacity-0 group-hover/addbtn:opacity-100 transition-opacity duration-200 shadow-xl">
+                    ⌘ + Enter
+                    <span className="absolute top-full left-1/2 -mt-1 -translate-x-1/2 w-2 h-2 rotate-45 bg-slate-900 dark:bg-white" />
+                  </span>
+                </div>
               </div>
               
               <div className="flex flex-wrap items-center gap-3 px-4 pb-3">
@@ -1118,8 +1132,12 @@ export default function Home() {
                               </motion.button>
                             </div>
                           ) : (
-                            // 显示模式
-                            <div>
+                            // 显示模式：双击正文进入编辑，hover 悬浮提示
+                            <div
+                              onDoubleClick={() => startEdit(todo.id, todo.text)}
+                              title={settings.language === 'zh' ? '双击编辑' : 'Double-click to edit'}
+                              className="cursor-text"
+                            >
                               <p
                                 className={`text-base sm:text-xl font-semibold mb-0.5 transition-all duration-500 break-words whitespace-pre-wrap ${
                                   todo.completed
@@ -1457,6 +1475,13 @@ export default function Home() {
                       resizeTextarea(e.currentTarget);
                     }}
                     placeholder={t.addTaskPlaceholder}
+                    onKeyDown={(e) => {
+                      // ⌘/Ctrl + Enter 提交；普通 Enter 仍为换行
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                        e.preventDefault();
+                        e.currentTarget.form?.requestSubmit();
+                      }
+                    }}
                     autoFocus
                     rows={1}
                     className="w-full min-h-[64px] max-h-48 resize-none overflow-hidden bg-slate-100 dark:bg-slate-800 border-none rounded-2xl px-6 py-5 text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none ring-1 ring-inset ring-slate-200 dark:ring-slate-700 transition-all"

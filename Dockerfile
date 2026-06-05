@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ===================================
 # Stage 1: 依赖安装
 # ===================================
@@ -44,7 +45,10 @@ RUN mkdir -p public
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # 构建应用（生成 .next/standalone 目录）
-RUN npm run build
+# .next/cache 挂 BuildKit cache mount：持久化 Next 的 SWC/webpack 增量编译缓存，跨 build 复用。
+# 改少量源码时增量编译，build 从全量 ~60s 降到十几秒；构建产物（.next/standalone、.next/static）
+# 不在 .next/cache 内，不受影响、照常 COPY 到 runner。
+RUN --mount=type=cache,id=todos-next-cache,target=/app/.next/cache npm run build
 
 # 裁剪为生产依赖（保留 better-sqlite3 原生模块及其传递依赖），供 runner 复用
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate && pnpm prune --prod

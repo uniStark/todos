@@ -77,11 +77,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await fetch('/api/auth/me');
       const data = await response.json();
-      setIsAuthenticated(Boolean(data?.authenticated));
+      const authed = Boolean(data?.authenticated);
+      setIsAuthenticated(authed);
       setUsername(typeof data?.username === 'string' ? data.username : null);
       setAllowRegistration(Boolean(data?.allowRegistration));
       setRequireInvite(Boolean(data?.requireInvite));
-      setCustomIcon(typeof data?.customIcon === 'string' ? data.customIcon : null);
+      // customIcon 已从 /api/auth/me 拆出，单独拉取以加速登录态探测（me 不再返回 256KB base64）。
+      if (authed) {
+        try {
+          const iconRes = await fetch('/api/auth/icon');
+          if (iconRes.ok) {
+            const iconData = await iconRes.json();
+            setCustomIcon(typeof iconData?.customIcon === 'string' ? iconData.customIcon : null);
+          } else {
+            setCustomIcon(null);
+          }
+        } catch {
+          setCustomIcon(null);
+        }
+      } else {
+        setCustomIcon(null);
+      }
     } catch (error) {
       console.error('[Auth] Failed to check session:', error);
       setIsAuthenticated(false);
@@ -190,16 +206,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 动态替换浏览器标签页 favicon：customIcon 有值则指向 data URL，否则回退默认 /favicon.ico。
+  // 必须遍历所有 link[rel~='icon']（不止第一个）统一设置，否则浏览器可能选用未替换的其它尺寸/ico。
   // SSR 安全：仅在 client 的 useEffect 内操作 document。
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    let link = document.head.querySelector<HTMLLinkElement>("link[rel~='icon']");
-    if (!link) {
-      link = document.createElement('link');
+    const href = customIcon ?? '/favicon.ico';
+    const links = document.head.querySelectorAll<HTMLLinkElement>("link[rel~='icon']");
+    if (links.length === 0) {
+      const link = document.createElement('link');
       link.rel = 'icon';
+      link.href = href;
       document.head.appendChild(link);
+    } else {
+      links.forEach((link) => {
+        link.href = href;
+      });
     }
-    link.href = customIcon ?? '/favicon.ico';
   }, [customIcon]);
 
   // cookie 同源自动携带，保留空实现以兼容历史调用点。

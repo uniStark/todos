@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Todo, Group, Priority, DEFAULT_GROUP_ID } from '@/lib/types';
-import { Trash2, Plus, Calendar, Clock, List, Loader, CheckCheck, Settings as SettingsIcon, BarChart3, LogOut, Pencil, Check, X, Github, Heart, Code2, FolderPlus, Flag, ChevronDown, MoreVertical } from 'lucide-react';
+import { Trash2, Plus, Calendar, Clock, List, Loader, Settings as SettingsIcon, BarChart3, LogOut, X, Github, Heart, Code2, FolderPlus, Flag, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ import { translations } from '@/lib/translations';
 import { isMobileApp } from '@/lib/platform';
 import { getMobileTodos, saveMobileTodos, getMobileGroups } from '@/lib/mobileStorage';
 import AuthModal from '@/components/AuthModal';
+import TodoItem from '@/components/TodoItem';
 
 // 动态导入 Logo 组件（非关键路径）
 const StarkLogo = dynamic(() => import('@/components/StarkLogo'), {
@@ -56,6 +57,16 @@ async function ensureOk(response: Response, fallbackMessage: string): Promise<vo
   await readJsonOrThrow<unknown>(response, fallbackMessage);
 }
 
+// 全量刷新（setTodos(serverData)）时，把本地仍处于乐观新增状态、且服务端尚未返回的临时项（temp-）
+// 追加回结果末尾，避免并发刷新抹掉未落库的新任务（随后 POST 成功的 tempId 校正会找不到目标而静默丢失）。
+function mergeWithPendingTemps(prev: Todo[], serverData: Todo[]): Todo[] {
+  const serverIds = new Set(serverData.map((t) => t.id));
+  const survivingTemps = prev.filter(
+    (t) => t.id.startsWith('temp-') && !serverIds.has(t.id)
+  );
+  return survivingTemps.length === 0 ? serverData : [...serverData, ...survivingTemps];
+}
+
 function resizeTextarea(textarea: HTMLTextAreaElement | null) {
   if (!textarea) return;
 
@@ -91,6 +102,17 @@ export default function Home() {
   // 用 ''(空串) 代表"新增任务"这种没有具体 todo id 的操作。
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
 
+  // 用 ref 镜像频繁变化的值（pendingIds/todos/editText/editingId），让操作回调可以读到最新值
+  // 而不必把这些放进 useCallback 依赖——否则它们每次变化都会重建回调、破坏 TodoItem 的 memo。
+  const pendingIdsRef = useRef(pendingIds);
+  pendingIdsRef.current = pendingIds;
+  const todosRef = useRef(todos);
+  todosRef.current = todos;
+  const editTextRef = useRef(editText);
+  editTextRef.current = editText;
+  const editingIdRef = useRef(editingId);
+  editingIdRef.current = editingId;
+
   const markPending = useCallback((id: string) => {
     setPendingIds((prev) => {
       const next = new Set(prev);
@@ -106,6 +128,17 @@ export default function Home() {
       next.delete(id);
       return next;
     });
+  }, []);
+
+  // 菜单开关：稳定回调，供 memo 化的 TodoItem 使用。打开时记录触发按钮位置（fixed 定位）。
+  const openMenu = useCallback((id: string, rect: DOMRect) => {
+    setMenuPosition({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    setOpenMenuId(id);
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setOpenMenuId(null);
+    setMenuPosition(null);
   }, []);
 
   // 触感反馈助手
@@ -142,7 +175,9 @@ export default function Home() {
         // Web 端使用 API
         const response = await fetch('/api/todos');
         const data = await readJsonOrThrow<Todo[]>(response, 'Failed to fetch todos');
-        setTodos(data);
+        // 保留本地仍处于乐观新增（temp-）状态的项，避免并发刷新（如 deleteGroup 触发）
+        // 把尚未落库的临时任务抹掉，导致随后 POST 成功的校正找不到 tempId 静默丢失。
+        setTodos((prev) => mergeWithPendingTemps(prev, data));
       }
     } catch (error) {
       console.error('Failed to fetch todos:', error);
@@ -177,6 +212,30 @@ export default function Home() {
       fetchGroups();
     }
   }, [fetchGroups, fetchTodos, isAuthenticated]);
+
+  useEffect(() => {
+    // 防御：Web 端登出后（isAuthenticated=false）清空内存中的数据，避免下一个用户登录前残留上一用户的任务/分组。
+    // 移动端为本地模式、无登录概念，不参与。
+    if (!isMobileApp() && !isAuthenticated) {
+      setTodos([]);
+      setGroups([]);
+      setOpenMenuId(null);
+      setMenuPosition(null);
+      setEditingId(null);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    // 菜单用 getBoundingClientRect 存的是 fixed 定位，滚动/resize 后会漂移到错误位置——直接关闭。
+    if (!openMenuId) return;
+    const close = () => closeMenu();
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openMenuId, closeMenu]);
 
   useEffect(() => {
     // Detect mobile device
@@ -317,8 +376,17 @@ export default function Home() {
         body: JSON.stringify(requestBody),
       });
       const newTodo = await readJsonOrThrow<Todo>(response, 'Failed to add todo');
-      // 用服务端返回对象（真实 id/createdAt）替换临时 todo。
-      setTodos((prev) => prev.map((t) => (t.id === tempId ? newTodo : t)));
+      // upsert：命中临时项则替换为服务端对象；若并发刷新已抹掉临时项（且未被 mergeWithPendingTemps 兜住），
+      // 则按 newTodo.id 命中替换；都未命中则追加，确保新任务绝不丢失。
+      setTodos((prev) => {
+        if (prev.some((t) => t.id === tempId)) {
+          return prev.map((t) => (t.id === tempId ? newTodo : t));
+        }
+        if (prev.some((t) => t.id === newTodo.id)) {
+          return prev.map((t) => (t.id === newTodo.id ? newTodo : t));
+        }
+        return [...prev, newTodo];
+      });
     } catch (error) {
       console.error('Failed to add todo:', error);
       // 回滚：移除临时 todo，并把输入还原方便重试。
@@ -359,7 +427,7 @@ export default function Home() {
     }
 
     // 去重：同一 todo 正在切换时忽略重复点击。临时 todo（未落库）也不允许操作。
-    if (pendingIds.has(id) || id.startsWith('temp-')) return;
+    if (pendingIdsRef.current.has(id) || id.startsWith('temp-')) return;
 
     // Web 端乐观更新：立即翻转完成态（含 completedAt），失败回滚。
     const newCompleted = !completed;
@@ -401,7 +469,7 @@ export default function Home() {
     } finally {
       clearPending(id);
     }
-  }, [isAuthenticated, isNativeApp, hapticFeedback, pendingIds, markPending, clearPending, toast, t]);
+  }, [isAuthenticated, isNativeApp, hapticFeedback, markPending, clearPending, toast, t]);
 
   const deleteTodo = useCallback(async (id: string) => {
     // 冗余保护：Web 端已通过登录 gate 才能进入；移动端 isAuthenticated 恒 true，不会阻断。
@@ -428,7 +496,7 @@ export default function Home() {
     }
 
     // 去重：同一 todo 删除进行中时忽略重复点击；临时 todo 不允许删除。
-    if (pendingIds.has(id) || id.startsWith('temp-')) return;
+    if (pendingIdsRef.current.has(id) || id.startsWith('temp-')) return;
 
     // Web 端乐观更新：记录被删项及其位置，先本地移除，失败时按原位置还原。
     let removedTodo: Todo | undefined;
@@ -465,7 +533,7 @@ export default function Home() {
     } finally {
       clearPending(id);
     }
-  }, [isAuthenticated, isNativeApp, hapticFeedback, pendingIds, markPending, clearPending, toast, t]);
+  }, [isAuthenticated, isNativeApp, hapticFeedback, markPending, clearPending, toast, t]);
 
   // 开始编辑
   const startEdit = useCallback((id: string, text: string) => {
@@ -490,16 +558,18 @@ export default function Home() {
       return;
     }
     
-    const todo = todos.find(t => t.id === id);
+    const todo = todosRef.current.find(t => t.id === id);
     if (!todo) return;
 
+    const currentEditingId = editingIdRef.current;
+    const currentEditText = editTextRef.current;
     const finalUpdates = {
       id,
-      text: updates.text || (id === editingId ? editText.trim() : todo.text),
+      text: updates.text || (id === currentEditingId ? currentEditText.trim() : todo.text),
       ...updates
     };
 
-    if (id === editingId && !editText.trim() && !updates.text) {
+    if (id === currentEditingId && !currentEditText.trim() && !updates.text) {
       cancelEdit();
       return;
     }
@@ -514,7 +584,7 @@ export default function Home() {
           await saveMobileTodos(currentTodos);
           setTodos(currentTodos.filter((t) => !t.deleted));
         }
-        if (id === editingId) cancelEdit();
+        if (id === currentEditingId) cancelEdit();
         hapticFeedback('medium');
       } catch (error) {
         console.error('Failed to update todo:', error);
@@ -523,7 +593,7 @@ export default function Home() {
     }
 
     // 去重：同一 todo 更新进行中时忽略；临时 todo（未落库）不允许更新。
-    if (pendingIds.has(id) || id.startsWith('temp-')) return;
+    if (pendingIdsRef.current.has(id) || id.startsWith('temp-')) return;
 
     // Web 端乐观更新：先本地合并（含 text/priority/groupId 等跨组移动），快照原值供回滚。
     const prevTodo = todo;
@@ -531,7 +601,7 @@ export default function Home() {
     setTodos((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...finalUpdates } : t))
     );
-    if (id === editingId) cancelEdit();
+    if (id === currentEditingId) cancelEdit();
     hapticFeedback('medium');
 
     try {
@@ -551,7 +621,7 @@ export default function Home() {
     } finally {
       clearPending(id);
     }
-  }, [editText, todos, cancelEdit, editingId, isAuthenticated, isNativeApp, hapticFeedback, pendingIds, markPending, clearPending, toast, t]);
+  }, [cancelEdit, isAuthenticated, isNativeApp, hapticFeedback, markPending, clearPending, toast, t]);
 
   const updateTodoPriority = useCallback((id: string, priority: Priority) => {
     saveEdit(id, { priority });
@@ -575,7 +645,9 @@ export default function Home() {
         // Web 端使用 API
         const todosResponse = await fetch('/api/todos');
         const todosData = await readJsonOrThrow<Todo[]>(todosResponse, 'Failed to refresh todos');
-        setTodos(todosData.filter((t: Todo) => !t.deleted));
+        // 同 fetchTodos：保留本地仍 pending 的乐观新增项，避免被整表覆盖抹掉。
+        const fresh = todosData.filter((t: Todo) => !t.deleted);
+        setTodos((prev) => mergeWithPendingTemps(prev, fresh));
 
         const groupsResponse = await fetch('/api/groups');
         const groupsData = await readJsonOrThrow<Group[]>(groupsResponse, 'Failed to refresh groups');
@@ -589,7 +661,7 @@ export default function Home() {
     }
   }, [isNativeApp, toast, t]);
 
-  const formatDate = (timestamp: number) => {
+  const formatDate = useCallback((timestamp: number) => {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) {
       return settings.language === 'zh' ? '时间未知' : 'Unknown time';
@@ -611,10 +683,10 @@ export default function Home() {
         minute: '2-digit',
       });
     }
-  };
+  }, [settings.language, settings.timezone]);
 
   // 格式化截止日期（支持时间）
-  const formatDueDate = (dueDate: string): string => {
+  const formatDueDate = useCallback((dueDate: string): string => {
     const datePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/;
     if (!datePattern.test(dueDate)) {
       const parsedDate = new Date(dueDate);
@@ -650,13 +722,27 @@ export default function Home() {
     }
     // 只有日期 (YYYY-MM-DD)
     const [, month, day] = dueDate.split('-');
-    return settings.language === 'zh' 
+    return settings.language === 'zh'
       ? `${parseInt(month)}月${parseInt(day)}日`
       : `${month}/${day}`;
-  };
+  }, [settings.language, settings.timezone]);
 
   // 使用 useMemo 优化计算
   const filteredTodos = useMemo(() => {
+    // 用用户时区计算"今天/明天"的本地日期（YYYY-MM-DD），避免用 UTC 的 toISOString 在东八区凌晨错判。
+    // en-CA 的 toLocaleDateString 输出即为 YYYY-MM-DD。
+    const localDate = (d: Date) => {
+      try {
+        return d.toLocaleDateString('en-CA', { timeZone: settings.timezone });
+      } catch {
+        return d.toLocaleDateString('en-CA');
+      }
+    };
+    const todayStr = localDate(new Date());
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = localDate(tomorrow);
+
     return todos
       .filter((todo) => {
         // 状态过滤（全部/进行中/已完成）
@@ -666,8 +752,7 @@ export default function Home() {
         
         // 时间过滤（过去/今天/未来）
         let matchesTime = true;
-        const todayStr = new Date().toISOString().split('T')[0];
-        
+
         if (timeFilter === 'past') {
           // 过去的任务（今天之前）
           if (todo.dueDate) {
@@ -681,9 +766,6 @@ export default function Home() {
           matchesTime = todo.dueDate?.startsWith(todayStr) || false;
         } else if (timeFilter === 'future') {
           // 未来的任务（明天之后）
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          const tomorrowStr = tomorrow.toISOString().split('T')[0];
           if (todo.dueDate) {
             const dueDateStr = todo.dueDate.split('T')[0];
             matchesTime = dueDateStr >= tomorrowStr;
@@ -723,7 +805,14 @@ export default function Home() {
         // 4. 同优先级按创建时间降序排序
         return b.createdAt - a.createdAt;
       });
-  }, [todos, filter, timeFilter, activeGroupId]);
+  }, [todos, filter, timeFilter, activeGroupId, settings.timezone]);
+
+  // 分组 id→名称映射：供 TodoItem 取标签名。传字符串而非整个 groups 数组，避免破坏 memo。
+  const groupNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const g of groups) m.set(g.id, g.name);
+    return m;
+  }, [groups]);
 
   const stats = useMemo(() => ({
     total: todos.length,
@@ -1052,217 +1141,33 @@ export default function Home() {
                 </motion.div>
               ) : (
                 filteredTodos.map((todo) => (
-                    <motion.div
-                      key={todo.id}
-                      layout
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
-                      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                      className={`glass-card p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[1.75rem] hover-lift group relative overflow-hidden ${
-                        todo.completed ? 'opacity-60 grayscale-[0.5]' : ''
-                      }`}
-                    >
-                      {/* Priority left border indicator for mobile */}
-                      {isMobile && todo.priority && (
-                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                          todo.priority === 'P0' ? 'bg-red-500' :
-                          todo.priority === 'P1' ? 'bg-amber-500' :
-                          'bg-blue-500'
-                        }`} />
-                      )}
-
-                      <div className="flex items-center gap-3 sm:gap-6">
-                        <motion.button
-                          whileTap={{ scale: 0.8 }}
-                          disabled={!isNativeApp && pendingIds.has(todo.id)}
-                          onClick={() => {
-                            toggleTodo(todo.id, todo.completed);
-                            hapticFeedback('light');
-                          }}
-                          className={`flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 cursor-pointer disabled:cursor-not-allowed ${
-                            todo.completed
-                              ? 'bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/20'
-                              : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-400'
-                          }`}
-                        >
-                          {todo.completed && <CheckCheck className="text-white" size={isMobile ? 14 : 18} strokeWidth={3} />}
-                        </motion.button>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5 sm:mb-1">
-                            {/* Priority Indicator - Desktop Only (Mobile uses left bar) */}
-                            {!isMobile && settings.enablePriority && todo.priority && (
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
-                                todo.priority === 'P0' ? 'bg-red-500 text-white shadow-sm' :
-                                todo.priority === 'P1' ? 'bg-amber-500 text-white shadow-sm' :
-                                'bg-blue-500 text-white shadow-sm'
-                              }`}>
-                                {todo.priority}
-                              </span>
-                            )}
-                            {/* Group Tag */}
-                            {settings.enableGroups && todo.groupId && todo.groupId !== DEFAULT_GROUP_ID && (
-                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-[8px] sm:text-[9px] font-bold uppercase tracking-widest ring-1 ring-slate-200 dark:ring-slate-700">
-                                {groups.find(g => g.id === todo.groupId)?.name || '...'}
-                              </span>
-                            )}
-                          </div>
-
-                          {editingId === todo.id ? (
-                            // 编辑模式
-                            <div className="flex items-center gap-2">
-                              <textarea
-                                data-edit-id={todo.id}
-                                value={editText}
-                                onChange={(e) => {
-                                  setEditText(e.target.value);
-                                  resizeTextarea(e.currentTarget);
-                                }}
-                                onKeyDown={(e) => {
-                                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveEdit(todo.id);
-                                  if (e.key === 'Escape') cancelEdit();
-                                }}
-                                autoFocus
-                                rows={1}
-                                className="flex-1 min-h-[40px] max-h-48 resize-none overflow-hidden bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3 py-2 text-base sm:text-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                              />
-                              <motion.button
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => saveEdit(todo.id)}
-                                className="p-1.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors cursor-pointer"
-                              >
-                                <Check size={16} strokeWidth={3} />
-                              </motion.button>
-                            </div>
-                          ) : (
-                            // 显示模式：双击正文进入编辑，hover 悬浮提示
-                            <div
-                              onDoubleClick={() => startEdit(todo.id, todo.text)}
-                              title={settings.language === 'zh' ? '双击编辑' : 'Double-click to edit'}
-                              className="cursor-text"
-                            >
-                              <p
-                                className={`text-base sm:text-xl font-semibold mb-0.5 transition-all duration-500 break-words whitespace-pre-wrap ${
-                                  todo.completed
-                                    ? 'line-through text-slate-400 dark:text-slate-500 italic'
-                                    : 'text-slate-900 dark:text-white'
-                                }`}
-                              >
-                                {todo.text}
-                              </p>
-                              <div className="flex items-center justify-between gap-3 text-[11px] sm:text-sm font-bold uppercase tracking-wider text-slate-400">
-                                <div className="flex min-w-0 flex-wrap items-center gap-3">
-                                  <span className="flex items-center gap-1">
-                                    <Calendar size={isMobile ? 10 : 12} strokeWidth={2.5} />
-                                    {formatDate(todo.createdAt)}
-                                  </span>
-                                  {todo.dueDate && (
-                                    <span className="flex items-center gap-1 text-orange-500">
-                                      <Clock size={isMobile ? 10 : 12} strokeWidth={2.5} />
-                                      {formatDueDate(todo.dueDate)}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {isMobile && editingId !== todo.id && (
-                                  <div className="flex shrink-0 items-center gap-1">
-                                    <motion.button
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        hapticFeedback('light');
-                                        if (openMenuId === todo.id) {
-                                          setOpenMenuId(null);
-                                          setMenuPosition(null);
-                                        } else {
-                                          const rect = e.currentTarget.getBoundingClientRect();
-                                          setMenuPosition({
-                                            top: rect.bottom + 8,
-                                            right: window.innerWidth - rect.right
-                                          });
-                                          setOpenMenuId(todo.id);
-                                        }
-                                      }}
-                                      className="rounded-xl p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-                                      aria-label={settings.language === 'zh' ? '更多操作' : 'More actions'}
-                                    >
-                                      <MoreVertical size={16} strokeWidth={2.5} />
-                                    </motion.button>
-                                    <motion.button
-                                      whileTap={{ scale: 0.9 }}
-                                      disabled={!isNativeApp && pendingIds.has(todo.id)}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        deleteTodo(todo.id);
-                                      }}
-                                      className="rounded-xl p-1.5 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 disabled:opacity-40 disabled:cursor-not-allowed"
-                                      aria-label={settings.language === 'zh' ? '删除任务' : 'Delete task'}
-                                    >
-                                      <Trash2 size={16} strokeWidth={2.5} />
-                                    </motion.button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 操作按钮 */}
-                        {editingId !== todo.id && (
-                          <div className={`${isMobile ? 'hidden' : 'flex'} items-center gap-0.5 sm:gap-1`}>
-                            {/* Mobile menu button */}
-                            <motion.button
-                              whileTap={{ scale: 0.9 }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                hapticFeedback('light');
-                                if (openMenuId === todo.id) {
-                                  setOpenMenuId(null);
-                                  setMenuPosition(null);
-                                } else {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setMenuPosition({
-                                    top: rect.bottom + 8,
-                                    right: window.innerWidth - rect.right
-                                  });
-                                  setOpenMenuId(todo.id);
-                                }
-                              }}
-                              className="p-2 sm:p-3 rounded-2xl text-slate-300 hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-300 transition-all duration-300 cursor-pointer"
-                            >
-                              <MoreVertical size={isMobile ? 16 : 18} strokeWidth={2.5} />
-                            </motion.button>
-
-                            <motion.button
-                              whileHover={{ scale: 1.1, backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startEdit(todo.id, todo.text);
-                              }}
-                              className="p-3 rounded-2xl text-slate-300 hover:text-blue-500 dark:text-slate-600 dark:hover:text-blue-400 transition-all duration-300 cursor-pointer"
-                            >
-                              <Pencil size={18} strokeWidth={2.5} />
-                            </motion.button>
-                            
-                            <motion.button
-                              whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
-                              whileTap={{ scale: 0.9 }}
-                              disabled={!isNativeApp && pendingIds.has(todo.id)}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteTodo(todo.id);
-                              }}
-                              className="p-2 sm:p-3 rounded-2xl text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-all duration-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <Trash2 size={isMobile ? 18 : 20} strokeWidth={2.5} />
-                            </motion.button>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))
+                  <TodoItem
+                    key={todo.id}
+                    todo={todo}
+                    isMobile={isMobile}
+                    isNativeApp={isNativeApp}
+                    isPending={pendingIds.has(todo.id)}
+                    isEditing={editingId === todo.id}
+                    isMenuOpen={openMenuId === todo.id}
+                    editText={editingId === todo.id ? editText : ''}
+                    groupName={todo.groupId ? groupNameById.get(todo.groupId) ?? null : null}
+                    language={settings.language}
+                    enablePriority={settings.enablePriority}
+                    enableGroups={settings.enableGroups}
+                    onToggle={toggleTodo}
+                    onDelete={deleteTodo}
+                    onStartEdit={startEdit}
+                    onSaveEdit={saveEdit}
+                    onCancelEdit={cancelEdit}
+                    onEditTextChange={setEditText}
+                    onOpenMenu={openMenu}
+                    onCloseMenu={closeMenu}
+                    hapticFeedback={hapticFeedback}
+                    formatDate={formatDate}
+                    formatDueDate={formatDueDate}
+                    resizeTextarea={resizeTextarea}
+                  />
+                ))
               )}
             </AnimatePresence>
           </div>

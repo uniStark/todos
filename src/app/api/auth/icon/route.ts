@@ -6,8 +6,23 @@ import { requireUser, isSameOrigin, unauthorized, forbidden } from '@/lib/auth/s
 const ICON_DATA_URL_RE =
   /^data:image\/(png|jpeg|jpg|webp|x-icon);base64,[A-Za-z0-9+/=]+$/;
 
-// 大小上限：256KB（按原始字节估算）。favicon 通常仅几 KB，限小可减小 /api/auth/me 响应体与 DB 行宽。
+// 大小上限：256KB（按原始字节估算）。favicon 通常仅几 KB，限小可减小响应体与 DB 行宽。
 const MAX_BYTES = 256 * 1024;
+
+// 返回当前登录用户的自定义图标（data URL），供前端首屏拉取（与 /api/auth/me 解耦以加速登录态探测）。
+// private 缓存：仅浏览器本地缓存、不被中间代理共享；图标变更后由前端上传/复位时刷新。
+export async function GET(request: Request) {
+  const auth = requireUser(request);
+  if (!auth) return unauthorized();
+
+  const user = getUserById(auth.userId);
+  if (!user) return unauthorized();
+
+  return NextResponse.json(
+    { customIcon: user.custom_icon ?? null },
+    { headers: { 'Cache-Control': 'private, max-age=300' } }
+  );
+}
 
 // 设置当前登录用户的浏览器标签页 favicon：需登录 + 同源（CSRF）。
 export async function POST(request: Request) {

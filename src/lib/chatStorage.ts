@@ -49,7 +49,7 @@ export const getAIConfig = (): AIConfig => {
     defaultModel: process.env.AI_DEFAULT_MODEL || 'gpt-4o-mini',
     temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
-    timeout: parseInt(process.env.AI_TIMEOUT || '600', 10),
+    timeout: parseInt(process.env.AI_TIMEOUT || '60', 10),
   };
 };
 
@@ -149,28 +149,30 @@ export const formatTodosForAI = (
   }
 
   const groupMap = new Map(groups.map(g => [g.id, g.name]));
-  
+
+  // 提示词注入加固：所有用户可控文本（任务内容、分组名）用 JSON.stringify 包裹，
+  // 自动转义引号/反斜杠/换行，避免用户在 todo 文本里注入指令而破坏 system prompt 结构。
   return activeTodos.map(t => {
     const parts = [
-      `- ID: "${t.id}"`,
-      `  内容: "${t.text}"`,
+      `- ID: ${JSON.stringify(t.id)}`,
+      `  内容: ${JSON.stringify(t.text)}`,
     ];
-    
+
     // 如果启用了优先级功能
     if (settings.enablePriority) {
       parts.push(`  优先级: ${t.priority || 'P2'}`);
     }
-    
+
     if (t.dueDate) {
-      parts.push(`  截止时间: ${t.dueDate}`);
+      parts.push(`  截止时间: ${JSON.stringify(t.dueDate)}`);
     }
-    
+
     // 如果启用了分组功能
     if (settings.enableGroups && t.groupId && t.groupId !== 'default') {
       const groupName = groupMap.get(t.groupId) || t.groupId;
-      parts.push(`  分组: ${groupName}`);
+      parts.push(`  分组: ${JSON.stringify(groupName)}`);
     }
-    
+
     return parts.join('\n');
   }).join('\n\n');
 };

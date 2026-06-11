@@ -603,8 +603,8 @@ export default function SettingsPage() {
 
                 <p className="text-[10px] font-bold leading-relaxed text-slate-400 px-1">
                   {settings.language === 'zh'
-                    ? '仅替换浏览器标签页图标；已安装到桌面的 PWA 图标无法在线修改。'
-                    : 'Only replaces the browser tab favicon; the icon of an installed desktop PWA cannot be changed online.'}
+                    ? '浏览器标签和新安装的 PWA 会用自定义图标；已安装到桌面的需卸载重装才更新。'
+                    : 'Browser tabs and newly installed PWAs use the custom icon; already-installed desktop PWAs need a reinstall to update.'}
                 </p>
               </div>
             </motion.div>

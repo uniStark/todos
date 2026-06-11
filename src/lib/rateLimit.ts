@@ -51,9 +51,15 @@ function normalizeIp(raw: string): string {
   return ip.toLowerCase();
 }
 
-// 取客户端 IP：优先 X-Real-IP，再取 X-Forwarded-For 的第一个（最靠近客户端的那个），
+// 取客户端 IP：优先 fly-client-ip（fly 边缘注入的可信头，客户端不可伪造），
+// 再回退 X-Real-IP，最后取 X-Forwarded-For 的第一个（最靠近客户端的那个），
 // IPv6 归一化（小写、去 %zone）；都取不到回退 'unknown'。
 export function getClientIp(request: Request): string {
+  const flyIp = request.headers.get('fly-client-ip');
+  if (flyIp && flyIp.trim()) {
+    return normalizeIp(flyIp);
+  }
+
   const realIp = request.headers.get('x-real-ip');
   if (realIp && realIp.trim()) {
     return normalizeIp(realIp);

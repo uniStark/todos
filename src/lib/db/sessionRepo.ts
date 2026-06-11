@@ -41,3 +41,10 @@ export function touchSession(tokenHash: string, lastSeenAt: number): void {
 export function deleteExpiredSessions(now: number): void {
   getDb().prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
 }
+
+// 删除某用户除当前会话外的所有 session（改密后踢掉其它设备/会话，保留当前登录）。
+export function deleteOtherSessionsForUser(userId: string, keepTokenHash: string): void {
+  getDb()
+    .prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?')
+    .run(userId, keepTokenHash);
+}

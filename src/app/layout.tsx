@@ -35,8 +35,30 @@ export const metadata: Metadata = {
       },
     ],
   },
-  manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
 };
+
+// 主题 FOUC 防护：在 React 接管前同步读 localStorage('stark-settings')，
+// 按 dark/light/system 给 <html> 加/去 'dark' class。逻辑必须与 SettingsContext.applyTheme 一致。
+// 默认主题（无存储或解析失败）对齐 SettingsContext 的 defaultSettings.theme = 'dark'。
+const themeInitScript = `
+(function(){
+  try {
+    var theme = 'dark';
+    var raw = localStorage.getItem('stark-settings');
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (parsed && (parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system')) {
+        theme = parsed.theme;
+      }
+    }
+    var dark = theme === 'dark' ||
+      (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var root = document.documentElement;
+    if (dark) { root.classList.add('dark'); } else { root.classList.remove('dark'); }
+  } catch (e) {}
+})();
+`;
 
 // Next 15 规范：viewport 单独用 viewport export 生成唯一一个 <meta>，
 // 避免手写 <meta viewport> 与框架默认注入的那个并存（会让 viewport-fit/maximum-scale 行为不确定）。
@@ -56,6 +78,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        {/* 阻塞式内联脚本：在首帧渲染前应用主题，消除 dark 用户刷新闪白屏（FOUC） */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className={`${inter.className} antialiased`} suppressHydrationWarning>
         <SettingsProvider>
           <AuthProvider>

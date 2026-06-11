@@ -77,12 +77,15 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // 同步 settings 中的 aiModel
+  // 仅挂载时从 settings 同步一次 aiModel，避免与 loadChatHistory 的回退逻辑互相写
+  // selectedModel 造成抖动。后续 settings.aiModel 的变化都来自 handleModelChange，
+  // 那里已直接 setSelectedModel，无需此 effect 再同步。
   useEffect(() => {
-    if (settings.aiModel && settings.aiModel !== selectedModel) {
+    if (settings.aiModel) {
       setSelectedModel(settings.aiModel);
     }
-  }, [selectedModel, settings.aiModel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 切换模型时保存到 settings
   const handleModelChange = (model: AIModelType) => {
@@ -148,17 +151,23 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
       if (models.length > 0) {
         setAvailableModels(models);
       }
-      // 若当前选中的模型不在网关返回的列表中，则回退到默认模型
+      // 若当前选中的模型不在网关返回的列表中，则回退到默认模型；
+      // 同时 updateSettings 持久化回退结果，避免下次挂载时 settings.aiModel
+      // 仍是失效模型、与本回退互相覆盖造成抖动。
       setSelectedModel((prev) => {
-        if (models.length > 0 && models.includes(prev)) {
+        if (models.length === 0 || models.includes(prev)) {
           return prev;
         }
-        return data.config?.defaultModel || models[0] || prev;
+        const next = data.config?.defaultModel || models[0] || prev;
+        if (next !== prev) {
+          updateSettings({ aiModel: next });
+        }
+        return next;
       });
     } catch (error) {
       console.error('Failed to load chat history:', error);
     }
-  }, []);
+  }, [updateSettings]);
 
   useEffect(() => {
     if (isOpen) {
@@ -212,18 +221,6 @@ export default function AIChat({ onRefreshTodos }: AIChatProps) {
         message?: ChatMessage;
         executionResult?: AIExecutionResult;
       }>(response, response.status === 401 ? ct.unauthorized : ct.sendFailed);
-      
-      // 更新消息列表
-      setMessages(prev => {
-        const filtered = prev.filter(m => m.id !== tempUserMessage.id);
-        // 添加真实的用户消息和AI回复
-        const newMessages = [...filtered];
-        if (data.message) {
-          // 从服务器获取完整的消息列表
-          loadChatHistory();
-        }
-        return newMessages;
-      });
 
       // 如果有操作被执行，刷新待办事项列表
       if (data.executionResult) {

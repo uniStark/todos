@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import { countUsers, createUser, getUserByUsername } from '@/lib/db/userRepo';
 import { ensureDefaultGroup } from '@/lib/db/groupsRepo';
+import { getDb } from '@/lib/db/index';
 import { hashPassword } from '@/lib/auth/password';
 import {
   createSession,
@@ -20,6 +21,16 @@ const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 // 受控注册：公开注册由 ALLOW_REGISTRATION 控制；首个用户（库为空）始终放行作为引导账户。
 function registrationAllowed(): boolean {
   return process.env.ALLOW_REGISTRATION === 'true' || countUsers() === 0;
+}
+
+// 邀请码恒定时间比较：先校验类型与长度（长度不等直接 false，否则 timingSafeEqual 会抛错），
+// 再用 crypto.timingSafeEqual 做恒定时间字节比较，避免按字符短路造成的时序侧信道。
+function inviteCodeMatches(provided: unknown, expected: string): boolean {
+  if (typeof provided !== 'string') return false;
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 export async function POST(request: Request) {
@@ -49,7 +60,7 @@ export async function POST(request: Request) {
   // 否则回退 ALLOW_REGISTRATION / 首用户放行。
   const inviteCode = process.env.INVITE_CODE?.trim();
   if (inviteCode) {
-    if (typeof body?.inviteCode !== 'string' || body.inviteCode !== inviteCode) {
+    if (!inviteCodeMatches(body?.inviteCode, inviteCode)) {
       return NextResponse.json({ error: '邀请码无效' }, { status: 403 });
     }
   } else if (!registrationAllowed()) {
@@ -62,13 +73,17 @@ export async function POST(request: Request) {
 
   const id = randomUUID();
   const now = Date.now();
+  const passwordHash = await hashPassword(password);
   try {
-    createUser({ id, username, passwordHash: await hashPassword(password), createdAt: now });
+    // 原子化：createUser + ensureDefaultGroup 同事务，避免建了用户却没默认分组的半成品状态。
+    getDb().transaction(() => {
+      createUser({ id, username, passwordHash, createdAt: now });
+      ensureDefaultGroup(id, now);
+    })();
   } catch {
-    // UNIQUE 约束兜底并发注册
+    // UNIQUE 约束兜底并发注册（事务整体回滚）
     return NextResponse.json({ error: '用户名已存在' }, { status: 409 });
   }
-  ensureDefaultGroup(id, now);
 
   const { token, expiresAt } = createSession(id);
   const res = NextResponse.json({ username });

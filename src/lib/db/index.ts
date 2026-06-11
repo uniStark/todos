@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   username      TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  created_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL,
+  custom_icon   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -92,7 +93,16 @@ export function getDb(): Database.Database {
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.exec(SCHEMA);
+  runMigrations(db);
 
   _db = db;
   return db;
+}
+
+// 幂等迁移：CREATE TABLE IF NOT EXISTS 不会为已存在的表补列，故对老库逐项检查后 ALTER。
+function runMigrations(db: Database.Database) {
+  const userCols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+  if (!userCols.some((c) => c.name === 'custom_icon')) {
+    db.exec('ALTER TABLE users ADD COLUMN custom_icon TEXT');
+  }
 }

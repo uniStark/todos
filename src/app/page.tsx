@@ -389,6 +389,10 @@ export default function Home() {
       const updatedTodo = await readJsonOrThrow<Todo>(response, 'Failed to toggle todo');
       // 用服务端规范化数据校正（如真实 completedAt）。
       setTodos((prev) => prev.map((t) => (t.id === id ? updatedTodo : t)));
+      // 仅在“未完成→完成”且请求成功后轻提示；“取消完成”不打扰。
+      if (newCompleted) {
+        toast.success(t.todoCompletedToast);
+      }
     } catch (error) {
       console.error('Failed to toggle todo:', error);
       // 整体还原操作前的快照（含 completedAt 等字段），函数式更新避免覆盖并发操作。
@@ -1147,7 +1151,7 @@ export default function Home() {
                               >
                                 {todo.text}
                               </p>
-                              <div className="flex items-center justify-between gap-3 text-[8px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
+                              <div className="flex items-center justify-between gap-3 text-[11px] sm:text-sm font-bold uppercase tracking-wider text-slate-400">
                                 <div className="flex min-w-0 flex-wrap items-center gap-3">
                                   <span className="flex items-center gap-1">
                                     <Calendar size={isMobile ? 10 : 12} strokeWidth={2.5} />

@@ -6,6 +6,7 @@ export interface UserRow {
   username: string;
   password_hash: string;
   created_at: number;
+  custom_icon: string | null;
 }
 
 export function createUser(input: {
@@ -40,4 +41,9 @@ export function countUsers(): number {
 
 export function updatePassword(id: string, passwordHash: string): void {
   getDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
+}
+
+// 更新当前用户的自定义图标（data URL）；传 null 恢复默认。
+export function updateUserIcon(id: string, dataUrl: string | null): void {
+  getDb().prepare('UPDATE users SET custom_icon = ? WHERE id = ?').run(dataUrl, id);
 }

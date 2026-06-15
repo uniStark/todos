@@ -3,12 +3,15 @@ import path from "node:path";
 
 // 检测是否是移动端构建
 const isMobileBuild = process.env.NEXT_OUTPUT === 'export';
+// Vercel（serverless）demo 部署：不用 standalone（Vercel 自有构建产物）；
+// 数据走 /tmp（非持久，仅供 UI/功能演示）。Docker/fly 持久化部署不受影响。
+const isVercel = process.env.VERCEL === '1';
 
 const nextConfig: NextConfig = {
   // 输出模式：
   // - 'standalone': Docker/服务器部署（默认）
   // - 'export': 静态导出，用于 Capacitor 移动端
-  output: isMobileBuild ? 'export' : 'standalone',
+  output: isMobileBuild ? 'export' : isVercel ? undefined : 'standalone',
   
   // 编译优化
   compiler: {

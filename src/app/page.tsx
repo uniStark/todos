@@ -1194,6 +1194,9 @@ export default function Home() {
         <p className="mt-4 text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest">
           Made with <span className="text-red-400">♥</span> by Adrian Stark
         </p>
+        <p className="mt-2 text-[10px] font-medium text-slate-400 dark:text-slate-500 tracking-widest">
+          © 2026 STARK. Fueled by coffee.
+        </p>
       </motion.footer>
 
       {/* Fixed Bottom Nav - 移动端原生 App 使用语音按钮，Web 移动端使用时间筛选 */}

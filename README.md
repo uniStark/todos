@@ -12,7 +12,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-[STARK Todo List Preview](https://todo.unistark.dpdns.org/)
+🌐 **[Live Demo](https://todosweb.vercel.app)** _(demo data is ephemeral — not persisted)_ · [Preview](https://todo.unistark.dpdns.org/)
 
 </div>
 

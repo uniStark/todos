@@ -32,23 +32,27 @@
   - System preference detection
   - Seamless theme switching
 
-- **📱 Responsive Design**
-  - Desktop-optimized with top navigation tabs
-  - Mobile-friendly with bottom navigation bar
-  - Touch-optimized interactive elements
-  - Adaptive layouts for all screen sizes
+- **📱 Responsive & PWA**
+  - Desktop top tabs + mobile bottom navigation, touch-optimized
+  - iPhone safe-area aware (Dynamic Island / home indicator), `100dvh` layouts
+  - Installable PWA with a per-user dynamic manifest icon
+  - Native iOS/Android packaging via Capacitor (separate build)
 
 - **⚙️ Customization**
-  - Multi-language support (English & Chinese)
-  - Customizable logo text
-  - Timezone selection
-  - Theme mode preferences
+  - Multi-language (English & Chinese), customizable logo text
+  - **Per-user custom browser tab / PWA icon** — upload by drag, paste, or file picker
+  - Timezone selection, optional priority & groups, API-docs toggle, theme preferences
 
 - **📊 Task Management**
-  - Create, complete, and delete tasks
-  - Task creation and completion timestamps
-  - Soft deletion (logical delete with data preservation)
-  - Filter tasks by status (All, Active, Completed)
+  - Create, complete, edit, and delete tasks; groups, priorities (P0/P1/P2), and due dates
+  - Quick actions: ⌘/Ctrl+Enter to add, double-click to edit, light toast on completion
+  - Creation/completion timestamps; soft deletion (logical delete, data preserved)
+  - Filter by status (All, Active, Completed) and by time (Today / Overdue / Upcoming)
+
+- **🤖 AI Assistant** (optional)
+  - Conversational task management — add / complete / update / delete via natural language
+  - Voice input support
+  - Works with any OpenAI-compatible gateway; model list fetched dynamically from `/v1/models`
 
 - **📊 Interactive Analytics Dashboard**
   - Daily Activity trend charts (Creation vs Completion)
@@ -56,15 +60,15 @@
   - Real-time KPI statistics (Total, Completed, Success Rate)
   - Flexible date ranges (7 Days, 30 Days, All Time)
 
-- **🔐 Multi-user & data isolation**
-  - User registration / login with HttpOnly cookie sessions
-  - Each user has private todos, groups, and AI chat history
-  - Passwords hashed with scrypt, same-origin (CSRF) checks on writes, controlled registration toggle
+- **🔐 Multi-user & Security**
+  - Registration / login with HttpOnly cookie sessions; change password (revokes other sessions)
+  - Each user has fully isolated todos, groups, and AI chat history
+  - scrypt-hashed passwords, same-origin (CSRF) checks on writes, in-memory rate limiting, controlled / invite-code registration
 
-- **💾 Data Persistence**
-  - SQLite database (better-sqlite3, WAL mode)
-  - Data survives app restarts
-  - Fully traceable task history
+- **💾 Data Persistence & Maintenance**
+  - SQLite database (better-sqlite3, WAL mode), per-user isolation
+  - Automated maintenance sidecar — expired-session cleanup, soft-delete GC, periodic SQLite backups
+  - Data survives restarts; fully traceable task history
 
 ## 🚀 Quick Start
 
@@ -169,7 +173,7 @@
    ```
 
 7. **Data Persistence & Safe Updates**
-   - Data is stored in a Docker volume named `todos-data`, which persists `todos.json` and `stats.json`.
+   - Data is stored in a Docker volume named `todos-data`, which holds the SQLite database (`todos.db` + WAL files) and periodic backups under `backups/`.
    - **Important**: Always use `./docker-update.sh` for updates. Avoid running `docker compose down -v` manually, as the `-v` flag will permanently delete your data volumes.
    - To backup data:
      ```bash
@@ -190,65 +194,62 @@
 ```
 Todos/
 ├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── api/               # API Routes
-│   │   │   └── todos/         # Todo CRUD endpoints
-│   │   ├── analytics/         # Insights & Charts page
-│   │   ├── settings/          # Settings page
-│   │   ├── page.tsx           # Main page
-│   │   ├── layout.tsx         # Root layout
-│   │   └── globals.css        # Global styles
-│   ├── components/            # React components
-│   │   ├── StarkLogo.tsx      # Animated logo
-│   │   └── AnalyticsDashboard.tsx # Data visualization
-│   ├── contexts/              # React contexts
-│   │   └── SettingsContext.tsx
-│   ├── lib/                   # Utility functions
-│   │   ├── storage.ts         # JSON file operations
-│   │   ├── translations.ts    # i18n translations
-│   │   └── timezones.ts       # Timezone data
-│   └── ...
-├── public/                    # Static assets
-├── scripts/
-│   ├── generate-icons.js      # Favicon generator
-│   ├── generate-mock-data.js  # Demo data generator
-│   └── build-mobile.mjs       # Static Capacitor build helper
-├── docker-compose.yml         # Docker Compose config
-├── Dockerfile                 # Docker image config
-├── docker-update.sh           # Docker rebuild/update script
-├── todos.json                 # Data storage file
-└── package.json               # Project dependencies
+│   ├── app/                       # Next.js App Router
+│   │   ├── api/                   # API routes
+│   │   │   ├── todos/ groups/ stats/   # CRUD + visit stats
+│   │   │   ├── auth/              # register / login / logout / me / change-password / icon
+│   │   │   ├── ai/                # AI chat & actions
+│   │   │   └── health/            # health check
+│   │   ├── analytics/             # Insights & charts page
+│   │   ├── settings/              # Settings page
+│   │   ├── api-docs/              # Interactive API docs
+│   │   ├── manifest.webmanifest/  # Per-user dynamic PWA manifest
+│   │   └── page.tsx · layout.tsx · globals.css
+│   ├── components/                # TodoItem, AnalyticsDashboard, AIChat, VoiceButton, AuthModal, StarkLogo, ...
+│   ├── contexts/                  # Auth / Settings / Toast contexts
+│   └── lib/
+│       ├── db/                    # SQLite layer: index.ts + userRepo / todosRepo / groupsRepo / chatRepo / sessionRepo / statsRepo
+│       ├── auth/                  # session & password (scrypt)
+│       └── translations.ts · timezones.ts · validation.ts · rateLimit.ts · chatStorage.ts
+├── public/                        # Static assets
+├── scripts/                       # maintenance.mjs (sidecar), migrate-json-to-sqlite.mjs, restore-sqlite.mjs, ...
+├── docker-compose.yml             # app + maintenance sidecar
+├── Dockerfile                     # Multi-stage build (.next/cache mount)
+├── docker-update.sh               # Rebuild/update script
+└── package.json
 ```
 
 ## 🛠️ Technology Stack
 
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 15 (App Router) + React 19
 - **Language**: TypeScript 5
 - **Styling**: Tailwind CSS 3.4
-- **Animation**: Framer Motion
-- **Charts**: Recharts
-- **Icons**: Lucide React
+- **Database**: SQLite (better-sqlite3, WAL)
+- **Animation**: Framer Motion · **Charts**: Recharts · **Icons**: Lucide React
+- **Mobile**: Capacitor (iOS/Android packaging)
 - **Containerization**: Docker & Docker Compose
 
-## 📝 Data Format
+## 📝 Data Model
 
-Tasks are stored in `todos.json` with the following structure:
+Data is stored in **SQLite** (`todos.db`) with per-user isolation. Each todo row looks like:
 
 ```json
-[
-  {
-    "id": "uuid",
-    "text": "Task description",
-    "completed": false,
-    "createdAt": 1705392000000,
-    "completedAt": null,
-    "deleted": false,
-    "deletedAt": null,
-    "groupId": "default",
-    "priority": "P2"
-  }
-]
+{
+  "id": "uuid",
+  "userId": "owner-uuid",
+  "text": "Task description",
+  "completed": false,
+  "createdAt": 1705392000000,
+  "completedAt": null,
+  "deleted": false,
+  "deletedAt": null,
+  "groupId": "default",
+  "priority": "P2",
+  "dueDate": "2026-01-31"
+}
 ```
+
+> Legacy JSON files (`todos.json` / `groups.json` / `chat-history.json`) are only used as a one-time import source — see the migration script in Quick Start.
 
 ## 🔌 API Reference
 
@@ -338,8 +339,8 @@ curl -X DELETE "https://your-domain/api/groups?id=uuid" -b cookies.txt
 
 | Method | Auth | Description |
 |--------|------|-------------|
-| GET | ❌ | Get PV/UV statistics |
-| POST | ❌ | Update visit statistics |
+| GET | ❌ | Get PV/UV statistics (public) |
+| POST | same-origin | Record a visit (same-origin + rate-limited) |
 
 **GET /api/stats**
 ```bash
@@ -354,6 +355,8 @@ curl https://your-domain/api/stats
 | POST | `/api/auth/login` | ❌ | Log in; sets session cookie |
 | POST | `/api/auth/logout` | ✅ | Destroy current session |
 | GET | `/api/auth/me` | — | Query current login state and whether registration is open |
+| POST | `/api/auth/change-password` | ✅ | Change password (revokes other sessions) |
+| GET / POST | `/api/auth/icon` | ✅ | Get / upload the current user's custom icon |
 
 **POST /api/auth/login**
 ```bash

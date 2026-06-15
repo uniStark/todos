@@ -32,23 +32,27 @@
   - 系统主题自动检测
   - 无缝主题切换
 
-- **📱 响应式设计**
-  - 桌面端优化的顶部导航标签
-  - 移动端友好的底部导航栏
-  - 触摸优化的交互元素
-  - 所有屏幕尺寸的自适应布局
+- **📱 响应式与 PWA**
+  - 桌面顶部标签 + 移动端底部导航，触摸优化
+  - 适配 iPhone 安全区（灵动岛 / Home Indicator），`100dvh` 布局
+  - 可安装为 PWA，支持每用户动态 manifest 图标
+  - 通过 Capacitor 打包原生 iOS/Android（独立构建）
 
 - **⚙️ 个性化定制**
-  - 多语言支持（中文和英文）
-  - 可自定义 Logo 文字
-  - 时区选择
-  - 主题模式偏好设置
+  - 多语言（中文 / 英文），可自定义 Logo 文字
+  - **每用户自定义浏览器标签 / PWA 图标** —— 拖拽、粘贴或选择文件上传
+  - 时区选择、优先级与分组开关、API 文档开关、主题偏好
 
 - **📊 任务管理**
-  - 创建、完成和删除任务
-  - 任务创建和完成时间戳
-  - 软删除（逻辑删除，保留数据）
-  - 按状态筛选任务（全部、进行中、已完成）
+  - 创建、完成、编辑、删除任务；分组、优先级（P0/P1/P2）、截止日期
+  - 快捷操作：⌘/Ctrl+Enter 添加、双击正文编辑、完成时轻提示
+  - 创建/完成时间戳；软删除（逻辑删除，保留数据）
+  - 按状态（全部、进行中、已完成）与时间（今天 / 逾期 / 即将到期）筛选
+
+- **🤖 AI 助手**（可选）
+  - 对话式任务管理 —— 用自然语言增 / 删 / 改 / 完成任务
+  - 支持语音输入
+  - 兼容任意 OpenAI 兼容网关；模型列表从 `/v1/models` 动态拉取
 
 - **📊 交互式数据分析仪表盘**
   - 每日动态趋势图（创建 vs 完成）
@@ -56,15 +60,15 @@
   - 实时 KPI 指标统计（总数、完成数、成功率）
   - 灵活的时间范围选择（7天、一个月、所有时间）
 
-- **🔐 多用户与数据隔离**
-  - 用户注册 / 登录，基于 HttpOnly cookie 会话
-  - 每个用户拥有独立私有的任务、分组与 AI 聊天记录
-  - 密码 scrypt 哈希存储，写接口同源（CSRF）校验，受控注册开关
+- **🔐 多用户与安全**
+  - 注册 / 登录，基于 HttpOnly cookie 会话；修改密码（同时踢掉其它会话）
+  - 每个用户的任务、分组与 AI 聊天记录完全隔离
+  - 密码 scrypt 哈希，写接口同源（CSRF）校验，内存限流，受控 / 邀请码注册
 
-- **💾 数据持久化**
-  - SQLite 数据库（better-sqlite3，WAL 模式）
-  - 数据在应用重启后保留
-  - 完全可追溯的任务历史
+- **💾 数据持久化与维护**
+  - SQLite 数据库（better-sqlite3，WAL 模式），按用户隔离
+  - 自动维护 sidecar —— 清理过期会话、回收软删数据、定期 SQLite 备份
+  - 数据在重启后保留；完全可追溯的任务历史
 
 ## 🚀 快速开始
 
@@ -168,7 +172,7 @@
    ```
 
 7. **数据持久化与安全更新**
-   - 数据存储在名为 `todos-data` 的 Docker 卷中，持久化存储 `todos.json` 和 `stats.json`。
+   - 数据存储在名为 `todos-data` 的 Docker 卷中，保存 SQLite 数据库（`todos.db` + WAL 文件）及 `backups/` 下的定期备份。
    - **重要提示**：在更新容器时，请务必使用 `./docker-update.sh`。不要手动运行 `docker compose down -v`，因为 `-v` 参数会永久删除您的所有数据卷。
    - 备份数据：
      ```bash
@@ -189,65 +193,62 @@
 ```
 Todos/
 ├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── api/               # API 路由
-│   │   │   └── todos/         # Todo CRUD 端点
-│   │   ├── analytics/         # 数据分析与图表页面
-│   │   ├── settings/          # 设置页面
-│   │   ├── page.tsx           # 主页面
-│   │   ├── layout.tsx         # 根布局
-│   │   └── globals.css        # 全局样式
-│   ├── components/            # React 组件
-│   │   ├── StarkLogo.tsx      # 动画 Logo
-│   │   └── AnalyticsDashboard.tsx # 数据可视化组件
-│   ├── contexts/              # React 上下文
-│   │   └── SettingsContext.tsx
-│   ├── lib/                   # 工具函数
-│   │   ├── storage.ts         # JSON 文件操作
-│   │   ├── translations.ts    # 国际化翻译
-│   │   └── timezones.ts       # 时区数据
-│   └── ...
-├── public/                    # 静态资源
-├── scripts/
-│   ├── generate-icons.js      # 图标生成脚本
-│   ├── generate-mock-data.js  # 演示数据生成脚本
-│   └── build-mobile.mjs       # Capacitor 静态构建辅助脚本
-├── docker-compose.yml         # Docker Compose 配置
-├── Dockerfile                 # Docker 镜像配置
-├── docker-update.sh           # Docker 重建/更新脚本
-├── todos.json                 # 数据存储文件
-└── package.json               # 项目依赖
+│   ├── app/                       # Next.js App Router
+│   │   ├── api/                   # API 路由
+│   │   │   ├── todos/ groups/ stats/   # CRUD + 访问统计
+│   │   │   ├── auth/              # register / login / logout / me / change-password / icon
+│   │   │   ├── ai/                # AI 对话与动作
+│   │   │   └── health/            # 健康检查
+│   │   ├── analytics/             # 数据分析与图表页
+│   │   ├── settings/              # 设置页
+│   │   ├── api-docs/              # 交互式 API 文档
+│   │   ├── manifest.webmanifest/  # 每用户动态 PWA manifest
+│   │   └── page.tsx · layout.tsx · globals.css
+│   ├── components/                # TodoItem、AnalyticsDashboard、AIChat、VoiceButton、AuthModal、StarkLogo 等
+│   ├── contexts/                  # Auth / Settings / Toast 上下文
+│   └── lib/
+│       ├── db/                    # SQLite 层：index.ts + userRepo / todosRepo / groupsRepo / chatRepo / sessionRepo / statsRepo
+│       ├── auth/                  # 会话与密码（scrypt）
+│       └── translations.ts · timezones.ts · validation.ts · rateLimit.ts · chatStorage.ts
+├── public/                        # 静态资源
+├── scripts/                       # maintenance.mjs（维护 sidecar）、migrate-json-to-sqlite.mjs、restore-sqlite.mjs 等
+├── docker-compose.yml             # app + 维护 sidecar
+├── Dockerfile                     # 多阶段构建（.next/cache mount）
+├── docker-update.sh               # 重建/更新脚本
+└── package.json
 ```
 
 ## 🛠️ 技术栈
 
-- **框架**: Next.js 15 (App Router)
+- **框架**: Next.js 15 (App Router) + React 19
 - **语言**: TypeScript 5
 - **样式**: Tailwind CSS 3.4
-- **动画**: Framer Motion
-- **图表**: Recharts
-- **图标**: Lucide React
+- **数据库**: SQLite (better-sqlite3, WAL)
+- **动画**: Framer Motion · **图表**: Recharts · **图标**: Lucide React
+- **移动端**: Capacitor (iOS/Android 打包)
 - **容器化**: Docker & Docker Compose
 
-## 📝 数据格式
+## 📝 数据模型
 
-任务存储在 `todos.json` 中，格式如下：
+数据存储在 **SQLite**（`todos.db`）中，按用户隔离。单条任务结构如下：
 
 ```json
-[
-  {
-    "id": "uuid",
-    "text": "任务描述",
-    "completed": false,
-    "createdAt": 1705392000000,
-    "completedAt": null,
-    "deleted": false,
-    "deletedAt": null,
-    "groupId": "default",
-    "priority": "P2"
-  }
-]
+{
+  "id": "uuid",
+  "userId": "owner-uuid",
+  "text": "任务描述",
+  "completed": false,
+  "createdAt": 1705392000000,
+  "completedAt": null,
+  "deleted": false,
+  "deletedAt": null,
+  "groupId": "default",
+  "priority": "P2",
+  "dueDate": "2026-01-31"
+}
 ```
+
+> 旧版 JSON 文件（`todos.json` / `groups.json` / `chat-history.json`）仅作为一次性导入源 —— 见快速开始里的迁移脚本。
 
 ## 🔌 API 接口文档
 
@@ -337,8 +338,8 @@ curl -X DELETE "https://your-domain/api/groups?id=uuid" -b cookies.txt
 
 | 方法 | 认证 | 描述 |
 |------|------|------|
-| GET | ❌ | 获取 PV/UV 统计 |
-| POST | ❌ | 更新访问统计 |
+| GET | ❌ | 获取 PV/UV 统计（公开） |
+| POST | 同源 | 记录访问（需同源 + 限流） |
 
 **GET /api/stats**
 ```bash
@@ -353,6 +354,8 @@ curl https://your-domain/api/stats
 | POST | `/api/auth/login` | ❌ | 登录，成功后种会话 cookie |
 | POST | `/api/auth/logout` | ✅ | 注销当前会话 |
 | GET | `/api/auth/me` | — | 查询当前登录态与是否开放注册 |
+| POST | `/api/auth/change-password` | ✅ | 修改密码（同时踢掉其它会话） |
+| GET / POST | `/api/auth/icon` | ✅ | 获取 / 上传当前用户的自定义图标 |
 
 **POST /api/auth/login**
 ```bash
